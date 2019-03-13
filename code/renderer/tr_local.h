@@ -101,7 +101,7 @@ typedef enum {
     TEXENV_REPLACE,
     TEXENV_DECAL,
     TEXENV_ADD
-};
+}texenv_t;
 
 // @pjb: we can't use GL internal formats any more: here's some common ground
 typedef enum {
@@ -527,7 +527,7 @@ typedef struct {
 } fog_t;
 
 typedef struct {
-	orientationr_t	or;
+	orientationr_t	or_;
 	orientationr_t	world;
 	vec3_t		pvsOrigin;			// may be different than or.origin for portals
 	qboolean	isPortal;			// true if this view is through a portal
@@ -906,7 +906,7 @@ typedef struct {
 	int			smpFrame;
 	trRefdef_t	refdef;
 	viewParms_t	viewParms;
-	orientationr_t	or;
+	orientationr_t	or_;
 	backEndCounters_t	pc;
 	qboolean	isHyperspace;
 	trRefEntity_t	*currentEntity;
@@ -977,7 +977,7 @@ typedef struct {
 	int						identityLightByte;	// identityLight * 255
 	int						overbrightBits;		// r_overbrightBits->integer, but set to 0 if no hw gamma
 
-	orientationr_t			or;					// for current entity
+	orientationr_t			or_;					// for current entity
 
 	trRefdef_t				refdef;
 
@@ -1173,7 +1173,7 @@ int R_CullLocalBox (vec3_t bounds[2]);
 int R_CullPointAndRadius( vec3_t origin, float radius );
 int R_CullLocalPointAndRadius( vec3_t origin, float radius );
 
-void R_RotateForEntity( const trRefEntity_t *ent, const viewParms_t *viewParms, orientationr_t *or );
+void R_RotateForEntity( const trRefEntity_t *ent, const viewParms_t *viewParms, orientationr_t *_or );
 
 
 void	RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty);
@@ -1363,7 +1363,7 @@ LIGHTS
 
 void R_DlightBmodel( bmodel_t *bmodel );
 void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent );
-void R_TransformDlights( int count, dlight_t *dl, orientationr_t *or );
+void R_TransformDlights( int count, dlight_t *dl, orientationr_t *_or );
 int R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, vec3_t lightDir );
 
 
@@ -1567,7 +1567,7 @@ typedef enum {
     DRAW_BUFFER_FRONT,
     DRAW_BUFFER_BACK_LEFT,
     DRAW_BUFFER_BACK_RIGHT
-};
+} drawBuffer_t;
 
 // these are sort of arbitrary limits.
 // the limits apply to the sum of all scenes in a frame --

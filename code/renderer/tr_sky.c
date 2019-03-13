@@ -269,7 +269,7 @@ void RB_ClipSkyPolygons( shaderCommands_t *input )
 		for (j = 0 ; j < 3 ; j++) 
 		{
 			VectorSubtract( input->xyz[input->indexes[i+j]],
-							backEnd.viewParms.or.origin, 
+							backEnd.viewParms.or_.origin, 
 							p[j] );
 		}
 		ClipSkyPolygon( 3, p[0], 0 );
@@ -413,7 +413,7 @@ static int DrawSkySide( skyboxSideDrawInfo_t* skyboxSideInfo, int vertexOffset, 
     return points;
 }
 
-static void DrawSkyBox( shader_t *shader, const float* eye_origin, const float* colorTint )
+static void DrawSkyBox( shader_t *shader, const float* eyeor_igin, const float* colorTint )
 {
 	int		i;
     int     vertexCount = 0;
@@ -493,7 +493,7 @@ static void DrawSkyBox( shader_t *shader, const float* eye_origin, const float* 
     skybox.vbuffer = s_skyVBuffer;
     skybox.tbuffer = s_skyTBuffer;
 
-    GFX_DrawSkyBox( &skybox, eye_origin, colorTint );
+    GFX_DrawSkyBox( &skybox, eyeor_igin, colorTint );
 }
 
 static void FillCloudySkySide( const int mins[2], const int maxs[2], qboolean addIndexes )
@@ -509,7 +509,7 @@ static void FillCloudySkySide( const int mins[2], const int maxs[2], qboolean ad
 	{
 		for ( s = mins[0]+HALF_SKY_SUBDIVISIONS; s <= maxs[0]+HALF_SKY_SUBDIVISIONS; s++ )
 		{
-			VectorAdd( s_skyPoints[t][s], backEnd.viewParms.or.origin, tess.xyz[tess.numVertexes] );
+			VectorAdd( s_skyPoints[t][s], backEnd.viewParms.or_.origin, tess.xyz[tess.numVertexes] );
 			tess.texCoords[tess.numVertexes][0][0] = s_skyTexCoords[t][s][0];
 			tess.texCoords[tess.numVertexes][0][1] = s_skyTexCoords[t][s][1];
 
@@ -756,9 +756,9 @@ void RB_DrawSun( void ) {
     GFX_GetModelViewMatrix( cachedModelView );
     
     memcpy( newModelView, backEnd.viewParms.world.modelMatrix, sizeof(float) * 16 );
-    newModelView[12] += backEnd.viewParms.or.origin[0];
-    newModelView[13] += backEnd.viewParms.or.origin[1];
-    newModelView[14] += backEnd.viewParms.or.origin[2];
+    newModelView[12] += backEnd.viewParms.or_.origin[0];
+    newModelView[13] += backEnd.viewParms.or_.origin[1];
+    newModelView[14] += backEnd.viewParms.or_.origin[2];
     GFX_SetModelViewMatrix( newModelView );
 
 	dist = 	backEnd.viewParms.zFar / 1.75;		// div sqrt(3)
@@ -873,7 +873,7 @@ void RB_StageIteratorSky( void ) {
             tr.identityLight
         };
 
-		DrawSkyBox( tess.shader, backEnd.viewParms.or.origin, colorTint );
+		DrawSkyBox( tess.shader, backEnd.viewParms.or_.origin, colorTint );
 	}
 
 	// generate the vertexes for all the clouds, which will be drawn

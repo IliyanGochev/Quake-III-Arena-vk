@@ -389,10 +389,10 @@ void RE_RenderScene( const refdef_t *fd ) {
 	parms.fovX = tr.refdef.fov_x;
 	parms.fovY = tr.refdef.fov_y;
 
-	VectorCopy( fd->vieworg, parms.or.origin );
-	VectorCopy( fd->viewaxis[0], parms.or.axis[0] );
-	VectorCopy( fd->viewaxis[1], parms.or.axis[1] );
-	VectorCopy( fd->viewaxis[2], parms.or.axis[2] );
+	VectorCopy( fd->vieworg, parms.or_.origin );
+	VectorCopy( fd->viewaxis[0], parms.or_.axis[0] );
+	VectorCopy( fd->viewaxis[1], parms.or_.axis[1] );
+	VectorCopy( fd->viewaxis[2], parms.or_.axis[2] );
 
 	VectorCopy( fd->vieworg, parms.pvsOrigin );
 

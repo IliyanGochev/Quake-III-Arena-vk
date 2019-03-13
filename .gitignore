@@ -24,3 +24,4 @@ build
 baseq3/maps/autosave.map
 *.db
 *.opendb
+*.vs

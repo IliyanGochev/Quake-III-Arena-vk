@@ -82,7 +82,11 @@ qboolean XAudio_Init(void)
     if ( FAILED( hr ) ) 
     {
         Com_Printf( "... Warning: XAudio2 failed to initialize.\n" );
-        goto fail;
+		Com_Printf("... Init Failed: 0x%08X\n", hr);
+
+		XAudio_Shutdown();
+		return qfalse;
+        
     }
 
     xaudio_lengthScale = Cvar_Get( "xaudio_lengthScale", "0", CVAR_TEMP | CVAR_ARCHIVE );
@@ -117,7 +121,10 @@ qboolean XAudio_Init(void)
     if ( FAILED( hr ) )
     {
         Com_Printf( "... Warning: XAudio2 failed to initialize master voice.\n" );
-        goto fail;
+		Com_Printf("... Init Failed: 0x%08X\n", hr);
+
+		XAudio_Shutdown();
+		return qfalse;
     }
     
     // Set up the DMA structure
@@ -143,7 +150,10 @@ qboolean XAudio_Init(void)
     if ( FAILED( hr ) )
     {
         Com_Printf( "... Warning: XAudio2 failed to initialize source voice.\n" );
-        goto fail;
+		Com_Printf("... Init Failed: 0x%08X\n", hr);
+
+		XAudio_Shutdown();
+		return qfalse;
     }
 
     // Start the voice (but there's no data yet)
@@ -165,14 +175,7 @@ qboolean XAudio_Init(void)
     }
 
     Com_Printf( "... OK.\n" );
-    return qtrue;
-
-fail:
-
-    Com_Printf( "... Init Failed: 0x%08X\n", hr );
-
-    XAudio_Shutdown();
-    return qfalse;
+    return qtrue;    
 }
 
 /*
