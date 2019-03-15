@@ -155,10 +155,10 @@ void RB_BeginDrawingView (void) {
 		plane[2] = backEnd.viewParms.portalPlane.normal[2];
 		plane[3] = backEnd.viewParms.portalPlane.dist;
 
-		plane2[0] = DotProduct (backEnd.viewParms._or.axis[0], plane);
-		plane2[1] = DotProduct (backEnd.viewParms._or.axis[1], plane);
-		plane2[2] = DotProduct (backEnd.viewParms._or.axis[2], plane);
-		plane2[3] = DotProduct (plane, backEnd.viewParms._or.origin) - plane[3];
+		plane2[0] = DotProduct (backEnd.viewParms.or_.axis[0], plane);
+		plane2[1] = DotProduct (backEnd.viewParms.or_.axis[1], plane);
+		plane2[2] = DotProduct (backEnd.viewParms.or_.axis[2], plane);
+		plane2[3] = DotProduct (plane, backEnd.viewParms.or_.origin) - plane[3];
 
 		GFX_SetPortalRendering( qtrue, s_flipMatrix, plane2 );
 	} else {
