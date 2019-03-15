@@ -41,6 +41,9 @@
     <Filter Include="Direct3D Implementation\Shaders">
       <UniqueIdentifier>{212d50ea-fa3c-4822-8549-17b9f9837e42}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Vulkan Implementation">
+      <UniqueIdentifier>{819dc395-ae76-4ce0-be13-740f126a322d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tr_animation.c">
@@ -376,6 +379,12 @@
     <ClCompile Include="tr_smp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vk_draw.cpp">
+      <Filter>Vulkan Implementation</Filter>
+    </ClCompile>
+    <ClCompile Include="vk_driver.cpp">
+      <Filter>Vulkan Implementation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tr_public.h">
@@ -479,6 +488,12 @@
     </ClInclude>
     <ClInclude Include="..\d3d11\d3d_device.h">
       <Filter>Direct3D Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="vk_common.h">
+      <Filter>Vulkan Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="vk_driver.h">
+      <Filter>Vulkan Implementation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

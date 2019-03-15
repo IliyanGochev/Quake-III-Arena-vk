@@ -177,10 +177,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release Win8|Win32'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
@@ -201,10 +205,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug Win8|Win32'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
@@ -1277,6 +1285,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Win8|ARM'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="vk_draw.cpp" />
+    <ClCompile Include="vk_driver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d11\d3d_common.h" />
@@ -1341,6 +1351,8 @@
     <ClInclude Include="..\jpeg-6\jpeglib.h" />
     <ClInclude Include="..\jpeg-6\jversion.h" />
     <ClInclude Include="tr_state.h" />
+    <ClInclude Include="vk_common.h" />
+    <ClInclude Include="vk_driver.h" />
     <CustomBuild Include="..\ft2\ahangles.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Win8|Win32'">true</ExcludedFromBuild>
