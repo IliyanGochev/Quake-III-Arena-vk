@@ -11,4 +11,5 @@ extern "C" {
 
 #define VK_PUBLIC extern "C"
 
+void VkCheckError(VkResult result);
 #endif

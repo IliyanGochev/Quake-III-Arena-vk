@@ -385,6 +385,12 @@
     <ClCompile Include="..\vulkan\vk_driver.cpp">
       <Filter>Vulkan Implementation</Filter>
     </ClCompile>
+    <ClCompile Include="..\vulkan\vk_device.cpp">
+      <Filter>Vulkan Implementation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_common.cpp">
+      <Filter>Vulkan Implementation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tr_public.h">
@@ -493,6 +499,9 @@
       <Filter>Vulkan Implementation</Filter>
     </ClInclude>
     <ClInclude Include="..\vulkan\vk_driver.h">
+      <Filter>Vulkan Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_device.h">
       <Filter>Vulkan Implementation</Filter>
     </ClInclude>
   </ItemGroup>

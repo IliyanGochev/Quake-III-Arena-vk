@@ -1,0 +1,103 @@
+#include "vk_common.h"
+
+void VkCheckError(VkResult result)
+{
+	if (result < 0)
+	{
+		switch (result) {
+		case VK_SUCCESS: break;
+
+		case VK_NOT_READY:
+			ri.Error(ERR_FATAL, "VKDBG: VK_NOT_READY!\n");
+			break;
+		case VK_TIMEOUT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_TIMEOUT!\n");
+			break;
+		case VK_EVENT_SET:
+			ri.Error(ERR_FATAL, "VKDBG: VK_EVENT_SET!\n");
+			break;
+		case VK_EVENT_RESET:
+			ri.Error(ERR_FATAL, "VKDBG: VK_EVENT_RESET!\n");
+			break;
+		case VK_INCOMPLETE:
+			ri.Error(ERR_FATAL, "VKDBG: VK_INCOMPLETE!\n");
+			break;
+		case VK_ERROR_OUT_OF_HOST_MEMORY:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_OUT_OF_HOST_MEMORY!\n");
+			break;
+		case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_OUT_OF_DEVICE_MEMORY!\n");
+			break;
+		case VK_ERROR_INITIALIZATION_FAILED:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INITIALIZATION_FAILED!\n");
+			break;
+		case VK_ERROR_DEVICE_LOST:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_DEVICE_LOST!\n");
+			break;
+		case VK_ERROR_MEMORY_MAP_FAILED:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_MEMORY_MAP_FAILED!\n");
+			break;
+		case VK_ERROR_LAYER_NOT_PRESENT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_LAYER_NOT_PRESENT!\n");
+			break;
+		case VK_ERROR_EXTENSION_NOT_PRESENT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_EXTENSION_NOT_PRESENT!\n");
+			break;
+		case VK_ERROR_FEATURE_NOT_PRESENT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_FEATURE_NOT_PRESENT!\n");
+			break;
+		case VK_ERROR_INCOMPATIBLE_DRIVER:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INCOMPATIBLE_DRIVER!\n");
+			break;
+		case VK_ERROR_TOO_MANY_OBJECTS:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_TOO_MANY_OBJECTS!\n");
+			break;
+		case VK_ERROR_FORMAT_NOT_SUPPORTED:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_FORMAT_NOT_SUPPORTED!\n");
+			break;
+		case VK_ERROR_FRAGMENTED_POOL:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_FRAGMENTED_POOL!\n");
+			break;
+		case VK_ERROR_OUT_OF_POOL_MEMORY:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_OUT_OF_POOL_MEMORY!\n");
+			break;
+		case VK_ERROR_INVALID_EXTERNAL_HANDLE:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INVALID_EXTERNAL_HANDLE!\n");
+			break;
+		case VK_ERROR_SURFACE_LOST_KHR:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_SURFACE_LOST_KHR!\n");
+			break;
+		case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_NATIVE_WINDOW_IN_USE_KHR!\n");
+			break;
+		case VK_SUBOPTIMAL_KHR:
+			ri.Error(ERR_FATAL, "VKDBG: VK_SUBOPTIMAL_KHR!\n");
+			break;
+		case VK_ERROR_OUT_OF_DATE_KHR:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_OUT_OF_DATE_KHR!\n");
+			break;
+		case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INCOMPATIBLE_DISPLAY_KHR!\n");
+			break;
+		case VK_ERROR_VALIDATION_FAILED_EXT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_VALIDATION_FAILED_EXT!\n");
+			break;
+		case VK_ERROR_INVALID_SHADER_NV:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INVALID_SHADER_NV!\n");
+			break;
+		case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT!\n");
+			break;
+		case VK_ERROR_FRAGMENTATION_EXT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_FRAGMENTATION_EXT!\n");
+			break;
+		case VK_ERROR_NOT_PERMITTED_EXT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_NOT_PERMITTED_EXT!\n");
+			break;
+		case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT:
+			ri.Error(ERR_FATAL, "VKDBG: VK_ERROR_INVALID_DEVICE_ADDRESS_EXT!\n");
+			break;
+		default:;
+		}
+	}
+}
