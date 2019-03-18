@@ -111,12 +111,8 @@ void VkCreateInstance()
 	instanceCreateInfo.ppEnabledExtensionNames	= instanceEnabledExtensionLayers.data();
 	instanceCreateInfo.pNext					= &debugReportCreateCallbackInfo;
 
-	auto err = vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance);
-	if (err != VK_SUCCESS)
-	{
-		assert(0 && "Error");
-		exit(err);
-	}
+	VkCheckError(vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance));
+	
 	CreateVkDebugCallback();
 }
 
@@ -184,7 +180,7 @@ void VkCreateDevice()
 	deviceCreateInfo.enabledExtensionCount		= deviceEnabledExtensionLayers.size();
 	deviceCreateInfo.ppEnabledExtensionNames	= deviceEnabledExtensionLayers.data();
 
-	vkCreateDevice(g_vkPhysicaDevice, &deviceCreateInfo, nullptr, &g_vkDevice);
+	VkCheckError( vkCreateDevice(g_vkPhysicaDevice, &deviceCreateInfo, nullptr, &g_vkDevice));
 }
 
 void VkDestroyDevice()
