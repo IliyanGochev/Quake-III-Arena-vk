@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // @pjb: various driver includes
 #include "../d3d11/d3d_driver.h"
+#include "../vulkan/vk_driver.h"
 #if !defined(WIN8)
 #   include "gl_common.h"
 #   include "proxy_main.h"
@@ -197,7 +198,11 @@ void InitDriver( void )
     {
         D3DDrv_DriverInit();
     }
-    else     if ( strcmp( r_driver->string, "proxy" ) == 0 )
+	else if ( strcmp( r_driver->string, "vulkan") == 0)
+	{
+		VKDrv_DriverInit();
+	}
+    else if ( strcmp( r_driver->string, "proxy" ) == 0 )
     {
         PROXY_DriverInit();
     }
