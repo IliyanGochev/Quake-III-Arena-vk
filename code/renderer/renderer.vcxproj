@@ -1285,8 +1285,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Win8|ARM'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="vk_draw.cpp" />
-    <ClCompile Include="vk_driver.cpp" />
+    <ClCompile Include="..\vulkan\vk_draw.cpp" />
+    <ClCompile Include="..\vulkan\vk_driver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d11\d3d_common.h" />
@@ -1351,8 +1351,8 @@
     <ClInclude Include="..\jpeg-6\jpeglib.h" />
     <ClInclude Include="..\jpeg-6\jversion.h" />
     <ClInclude Include="tr_state.h" />
-    <ClInclude Include="vk_common.h" />
-    <ClInclude Include="vk_driver.h" />
+    <ClInclude Include="..\vulkan\vk_common.h" />
+    <ClInclude Include="..\vulkan\vk_driver.h" />
     <CustomBuild Include="..\ft2\ahangles.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Win8|Win32'">true</ExcludedFromBuild>

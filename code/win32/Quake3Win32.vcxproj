@@ -119,6 +119,7 @@
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(VULKAN_SDK)\Include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -132,6 +133,7 @@
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(VULKAN_SDK)\Include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -145,6 +147,7 @@
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(VULKAN_SDK)\Include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -158,6 +161,7 @@
     <OutDir>$(SolutionDir)Build\$(SolutionName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)Build\Intermediate\$(SolutionName)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
     <LibraryPath>$(VULKAN_SDK)\Lib32\;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(VULKAN_SDK)\Include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug TA|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -573,6 +577,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release TA|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug TA|x64'">false</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="win_vulkan.cpp" />
     <ClCompile Include="win_wndproc.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
@@ -626,6 +631,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release TA|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug TA|x64'">false</ExcludedFromBuild>
     </ClInclude>
+    <ClInclude Include="win_vulkan.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cursor2.cur" />
@@ -647,16 +653,16 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\botlib\botlib_VS2013.vcxproj">
+    <ProjectReference Include="..\botlib\botlib.vcxproj">
       <Project>{a410161f-ae9f-485d-a01f-5294891430a6}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\qcommon\quake3_VS2013.vcxproj">
+    <ProjectReference Include="..\qcommon\quake3.vcxproj">
       <Project>{40cdcff3-982c-45fc-8e9e-4a90d6b2a057}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\renderer\renderer_VS2013.vcxproj">
+    <ProjectReference Include="..\renderer\renderer.vcxproj">
       <Project>{ab424155-fbed-4d8d-b007-5b6cf93ea395}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\splines\Splines_VS2013.vcxproj">
+    <ProjectReference Include="..\splines\Splines.vcxproj">
       <Project>{dbaf2c53-3858-455d-a1ae-3fc093515314}</Project>
     </ProjectReference>
   </ItemGroup>
