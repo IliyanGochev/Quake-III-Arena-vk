@@ -99,5 +99,6 @@ void VkCheckError(VkResult result)
 			break;
 		default:;
 		}
+		assert(0 && "Error occurred!");
 	}
 }
