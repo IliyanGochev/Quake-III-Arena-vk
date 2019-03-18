@@ -69,6 +69,7 @@ VK_PUBLIC void VKDrv_DriverInit(void)
 
 void VKDrv_Shutdown()
 {
+	VKWnd_Shutdown();
 }
 
 void VKDrv_UnbindResources()
