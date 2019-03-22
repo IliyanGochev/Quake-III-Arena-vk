@@ -134,11 +134,22 @@ VK_PUBLIC void VKWnd_Init( void )
 	}
 		
 	VkCreateInstance();
-	VkCreateDevice();
+
+	::ShowWindow(g_vkhWnd, SW_SHOW);
+	::UpdateWindow(g_vkhWnd);
+	::SetForegroundWindow(g_vkhWnd);
+	::SetFocus(g_vkhWnd);
 }
 
-VK_PUBLIC void VKWnd_Shutdown()
-{
-	VkDestroyDevice();
+VK_PUBLIC void VKWnd_Shutdown( void)
+{	
 	VkDestroyInstance();
+}
+
+VK_PUBLIC HWND VKWnd_GetWindowHandle( void) {
+	return g_vkhWnd;
+}
+
+VK_PUBLIC HINSTANCE VKWnd_GetInstance(void) {
+	return g_wv.hInstance;
 }
