@@ -2,5 +2,3 @@
 
 void VkCreateInstance();
 void VkDestroyInstance();
-void VkCreateDevice();
-void VkDestroyDevice();
