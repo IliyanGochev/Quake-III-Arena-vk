@@ -72,6 +72,13 @@ void VkCreateSurface() {
 
 	VkCheckError( vkCreateWin32SurfaceKHR(g_vkInstance, &createInfo, nullptr, &g_vkSurface));
 
+	VkBool32 supported;
+	VkCheckError(vkGetPhysicalDeviceSurfaceSupportKHR(g_vkPhysicaDevice, g_vkGraphicsFamilyIndex, g_vkSurface, &supported));
+
+	if (!supported) {
+		assert(0 && "Surface format not supported!");
+	}
+
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_vkPhysicaDevice, g_vkSurface, &g_vkSurfaceCapabilites);
 	if (g_vkSurfaceCapabilites.currentExtent.width < UINT32_MAX) {
 		surfaceSizeX = g_vkSurfaceCapabilites.currentExtent.width;
@@ -82,7 +89,7 @@ void VkCreateSurface() {
 		uint32_t formatCount = 0;
 		
 		vkGetPhysicalDeviceSurfaceFormatsKHR(g_vkPhysicaDevice, g_vkSurface, &formatCount, nullptr);
-		if (formatCount > 0) {
+		if (formatCount == 0) {
 			assert(0 && "Surface formats missing");
 			exit(-1);
 		}
@@ -122,6 +129,8 @@ void EnableExtensions() {
 	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+
+	deviceEnabledExtensionLayers.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 void SetupDebugLayers()
@@ -268,12 +277,14 @@ void VkCreateSwapChain() {
 
 		// V-Sync by default
 		for (auto& m: presentModes) {
-			if (m == VK_PRESENT_MODE_MAILBOX_KHR) 
+			if (m == VK_PRESENT_MODE_MAILBOX_KHR) {
 				presentMode = m;
+				break;
+			}
 		}
 	}
 
-	VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+	VkSwapchainCreateInfoKHR swapchainCreateInfo {};
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCreateInfo.surface					= g_vkSurface;
 	swapchainCreateInfo.minImageCount			= g_vkSwapchainImageCount; 
@@ -281,10 +292,8 @@ void VkCreateSwapChain() {
 	swapchainCreateInfo.imageColorSpace			= g_vkSurfaceFormat.colorSpace;
 	swapchainCreateInfo.imageExtent				= g_vkSurfaceCapabilites.currentExtent;
 	swapchainCreateInfo.imageArrayLayers		= 1; // 2 for stereoscopic
-	swapchainCreateInfo.imageUsage				= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageUsage				= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	swapchainCreateInfo.imageSharingMode		= VK_SHARING_MODE_EXCLUSIVE;
-	swapchainCreateInfo.queueFamilyIndexCount	= 0;
-	swapchainCreateInfo.pQueueFamilyIndices		= nullptr;
 	swapchainCreateInfo.preTransform			= VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapchainCreateInfo.compositeAlpha			= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // TODO: check for more info
 	swapchainCreateInfo.presentMode				= presentMode;
