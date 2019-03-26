@@ -122,11 +122,6 @@ void EnableExtensions() {
 	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-
-	// Note: Device extensions are deprecated but having them for clarity
-	deviceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-	deviceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-	deviceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 }
 
 void SetupDebugLayers()
