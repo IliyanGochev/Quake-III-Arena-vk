@@ -60,7 +60,8 @@ VkDebugCallback(
 	return false;
 }
 
-
+uint32_t surfaceSizeX = 0;
+uint32_t surfaceSizeY = 0;
 
 void VkCreateSurface() {
 	VkWin32SurfaceCreateInfoKHR createInfo = {};
@@ -77,6 +78,10 @@ void VkCreateSurface() {
 	VkSurfaceCapabilities2KHR surfaceCapabilites{};
 	
 	vkGetPhysicalDeviceSurfaceCapabilities2KHR(g_vkPhysicaDevice, &surfaceInfo, &surfaceCapabilites);
+	if (surfaceCapabilites.surfaceCapabilities.currentExtent.width < UINT32_MAX) {		
+		surfaceSizeX = surfaceCapabilites.surfaceCapabilities.currentExtent.width;
+		surfaceSizeY = surfaceCapabilites.surfaceCapabilities.currentExtent.height;
+	}
 	{
 		// TODO: Move it out?
 		uint32_t formatCount = 0;
