@@ -123,7 +123,7 @@ void CheckRequiredExtensionsAvailability() {
 	
 };
 
-void EnableExtensions() {
+void EnableExtensionLayers() {
 
 	CheckRequiredExtensionsAvailability();
 	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
@@ -311,7 +311,7 @@ void VkDestroySwapChain() {
 void VkCreateInstance()
 {
 	SetupDebugLayers();	
-	EnableExtensions();
+	EnableExtensionLayers();
 
 	VkApplicationInfo applicationInfo{};
 	applicationInfo.sType				= VK_STRUCTURE_TYPE_APPLICATION_INFO;
