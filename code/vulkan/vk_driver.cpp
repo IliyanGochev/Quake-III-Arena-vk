@@ -126,6 +126,7 @@ int VKDrv_SumOfUsedImages()
 
 void VKDrv_GfxInfo()
 {
+	ri.Printf(PRINT_ALL, "----- Vulkan 1.1 -----\n");
 }
 
 void VKDrv_Clear(unsigned long bits, const float* clearCol, unsigned long stencil, float depth)
