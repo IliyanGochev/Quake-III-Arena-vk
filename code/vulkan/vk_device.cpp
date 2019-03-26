@@ -168,7 +168,9 @@ void DestroyVkDebugCallback()
 void VkCreateQueryPool() {
 	VkQueryPoolCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-	// TODO: Check the other fields of createInfo
+	createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+	createInfo.queryCount = 16; // TODO: Pull out	
+	// TODO: do we need query pools for each frame?
 	VkCheckError(vkCreateQueryPool(g_vkDevice, &createInfo, nullptr, &g_vkQueryPool));
 }
 
