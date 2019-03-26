@@ -16,6 +16,9 @@ VkSurfaceFormatKHR			g_vkSurfaceFormat				= {};
 uint32_t					g_vkGraphicsFamilyIndex			= 0;
 VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
 VkSemaphore					g_vkSemaphore					= VK_NULL_HANDLE;
+VkCommandPool				g_vkCommandPool					= VK_NULL_HANDLE;
+VkQueryPool					g_vkQueryPool					= VK_NULL_HANDLE;
+VkCommandBuffer				g_vkCmdBuffer					= VK_NULL_HANDLE;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
 std::vector<const char*>	instanceEnabledExtensionLayers	= {};
@@ -162,27 +165,41 @@ void DestroyVkDebugCallback()
 }
 
 void VkCreateQueryPool() {
-	
+	VkQueryPoolCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+	// TODO: Check the other fields of createInfo
+	VkCheckError(vkCreateQueryPool(g_vkDevice, &createInfo, nullptr, &g_vkQueryPool));
 }
 
 void VkDestroyQueryPool() {
-	
+	vkDestroyQueryPool(g_vkDevice, g_vkQueryPool, nullptr);
 }
 
 void VkCreateCommandPool() {
+	VkCommandPoolCreateInfo createInfo{};
+	createInfo.sType			= VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	createInfo.queueFamilyIndex = g_vkGraphicsFamilyIndex;
+	createInfo.flags			= VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	
+	VkCheckError( vkCreateCommandPool(g_vkDevice, &createInfo, nullptr, &g_vkCommandPool));
 }
 
 void VkDestroyCommandPool() {
-	
+	vkDestroyCommandPool(g_vkDevice, g_vkCommandPool, nullptr);
 }
 
 void VkCreateCommandBuffer() {
-	
+	VkCommandBufferAllocateInfo cbAllocateInfo{};
+	cbAllocateInfo.sType				= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cbAllocateInfo.commandPool			= g_vkCommandPool;
+	cbAllocateInfo.commandBufferCount	= 1;
+	cbAllocateInfo.level				= VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	VkCheckError(vkAllocateCommandBuffers(g_vkDevice, &cbAllocateInfo, &g_vkCmdBuffer));
 }
 
 void VkDestroyCommandBuffer() {
-	
+	vkFreeCommandBuffers(g_vkDevice, g_vkCommandPool, 1, &g_vkCmdBuffer);
 }
 
 
