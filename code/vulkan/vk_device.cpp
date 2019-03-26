@@ -11,6 +11,7 @@ VkPhysicalDevice			g_vkPhysicaDevice				= nullptr;
 VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	= {};
 VkSwapchainKHR				g_vkSwapchain					= {};
 VkSurfaceKHR				g_vkSurface						= {};
+VkSurfaceFormat2KHR			g_vkSurfaceFormat				= {};
 uint32_t					g_vkGraphicsFamilyIndex			= 0;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
@@ -59,6 +60,8 @@ VkDebugCallback(
 	return false;
 }
 
+
+
 void VkCreateSurface() {
 	VkWin32SurfaceCreateInfoKHR createInfo = {};
 	createInfo.sType		= VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -66,6 +69,33 @@ void VkCreateSurface() {
 	createInfo.hwnd			= VKWnd_GetWindowHandle();	
 
 	VkCheckError( vkCreateWin32SurfaceKHR(g_vkInstance, &createInfo, nullptr, &g_vkSurface));
+
+	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+	surfaceInfo.surface = g_vkSurface;
+
+	VkSurfaceCapabilities2KHR surfaceCapabilites{};
+	
+	vkGetPhysicalDeviceSurfaceCapabilities2KHR(g_vkPhysicaDevice, &surfaceInfo, &surfaceCapabilites);
+	{
+		// TODO: Move it out?
+		uint32_t formatCount = 0;
+		
+		vkGetPhysicalDeviceSurfaceFormats2KHR(g_vkPhysicaDevice, &surfaceInfo, &formatCount, nullptr);
+		if (formatCount > 0) {
+			assert(0 && "Surface formats missing");
+			exit(-1);
+		}
+
+		std::vector<VkSurfaceFormat2KHR> formats(formatCount);
+		vkGetPhysicalDeviceSurfaceFormats2KHR(g_vkPhysicaDevice, &surfaceInfo, &formatCount, formats.data());
+		if (formats[0].surfaceFormat.format == VK_FORMAT_UNDEFINED) {
+			g_vkSurfaceFormat.surfaceFormat.format		= VK_FORMAT_B8G8R8A8_UNORM;
+			g_vkSurfaceFormat.surfaceFormat.colorSpace	= VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		}else {
+			g_vkSurfaceFormat = formats[0];
+		}
+	}
 }
 
 void VkDestroySurface() {
@@ -82,13 +112,26 @@ void VkDestroySemaphores() {
 	// TODO: Destroy the semaphores
 }
 
-void SetupDebugLayers()
-{
-	instanceEnabledLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+void CheckRequiredExtensionsAvailability() {
+	
+};
+
+void EnableExtensions() {
+
+	CheckRequiredExtensionsAvailability();
 	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
+	// Note: Device extensions are deprecated but having them for clarity
+	deviceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+	deviceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	deviceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+}
+
+void SetupDebugLayers()
+{
+	instanceEnabledLayers.push_back("VK_LAYER_LUNARG_standard_validation");
 	deviceEnabledLayers.push_back("VK_LAYER_LUNARG_standard_validation");
 
 	debugReportCreateCallbackInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
@@ -228,13 +271,16 @@ void VkDestroySwapChain() {
 void VkCreateInstance()
 {
 	SetupDebugLayers();	
-	
+	EnableExtensions();
+
 	VkApplicationInfo applicationInfo{};
 	applicationInfo.sType				= VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pApplicationName	= "Quake 3 Arena (Vulkan)";
 	applicationInfo.pEngineName			= "idTech 3.5";
 	applicationInfo.engineVersion		= 1;
 	applicationInfo.apiVersion			= VK_API_VERSION_1_1;
+
+	
 
 	VkInstanceCreateInfo instanceCreateInfo{};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
