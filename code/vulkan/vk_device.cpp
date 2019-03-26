@@ -14,6 +14,8 @@ VkSurfaceKHR				g_vkSurface						= {};
 VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			= {};
 VkSurfaceFormatKHR			g_vkSurfaceFormat				= {};
 uint32_t					g_vkGraphicsFamilyIndex			= 0;
+VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
+VkSemaphore					g_vkSemaphore					= VK_NULL_HANDLE;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
 std::vector<const char*>	instanceEnabledExtensionLayers	= {};
@@ -108,15 +110,6 @@ void VkCreateSurface() {
 void VkDestroySurface() {
 	vkDestroySurfaceKHR(g_vkInstance, g_vkSurface, nullptr);
 	g_vkSurface = VK_NULL_HANDLE;
-}
-
-void VkCreateSemaphores() {
-	// TODO: Create VkSemaphoreCreateInfo depending on the needs?
-	
-}
-
-void VkDestroySemaphores() {
-	// TODO: Destroy the semaphores
 }
 
 void CheckRequiredExtensionsAvailability() {
@@ -308,6 +301,25 @@ void VkDestroySwapChain() {
 	vkDestroySwapchainKHR(g_vkDevice, g_vkSwapchain, nullptr);
 }
 
+void CreateSyncPrimitives() {
+	{
+		VkFenceCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		VkCheckError(vkCreateFence(g_vkDevice, &createInfo, nullptr, &g_vkSwapchainFence));
+	}
+	{
+		VkSemaphoreCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VkCheckError(vkCreateSemaphore(g_vkDevice, &createInfo, nullptr, &g_vkSemaphore));
+	}
+}
+
+void VkDestroySyncPrimitives() {
+	vkDestroySemaphore(g_vkDevice, g_vkSemaphore, nullptr);
+	vkDestroyFence(g_vkDevice, g_vkSwapchainFence, nullptr);
+}
+
+
 void VkCreateInstance()
 {
 	SetupDebugLayers();	
@@ -340,7 +352,7 @@ void VkCreateInstance()
 
 	VkCreateSwapChain();	
 
-	// CreateSemaphores();
+	CreateSyncPrimitives();
 
 	// Create Query Pool
 	VkCreateQueryPool();
@@ -350,7 +362,6 @@ void VkCreateInstance()
 
 	// Create Command Buffer
 	VkCreateCommandBuffer();
-
 }
 
 void VkDestroyInstance()
@@ -358,7 +369,7 @@ void VkDestroyInstance()
 	VkDestroyCommandBuffer();
 	VkDestroyCommandPool();
 	VkDestroyQueryPool();
-	VkDestroySemaphores();	
+	VkDestroySyncPrimitives();	
 	VkDestroySwapChain();
 	VkDestroySurface();
 	VkDestroyDevice();
