@@ -11,7 +11,8 @@ VkPhysicalDevice			g_vkPhysicaDevice				= nullptr;
 VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	= {};
 VkSwapchainKHR				g_vkSwapchain					= {};
 VkSurfaceKHR				g_vkSurface						= {};
-VkSurfaceFormat2KHR			g_vkSurfaceFormat				= {};
+VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			= {};
+VkSurfaceFormatKHR			g_vkSurfaceFormat				= {};
 uint32_t					g_vkGraphicsFamilyIndex			= 0;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
@@ -71,32 +72,26 @@ void VkCreateSurface() {
 
 	VkCheckError( vkCreateWin32SurfaceKHR(g_vkInstance, &createInfo, nullptr, &g_vkSurface));
 
-	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo {};
-	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
-	surfaceInfo.surface = g_vkSurface;
-
-	VkSurfaceCapabilities2KHR surfaceCapabilites{};
-	
-	vkGetPhysicalDeviceSurfaceCapabilities2KHR(g_vkPhysicaDevice, &surfaceInfo, &surfaceCapabilites);
-	if (surfaceCapabilites.surfaceCapabilities.currentExtent.width < UINT32_MAX) {		
-		surfaceSizeX = surfaceCapabilites.surfaceCapabilities.currentExtent.width;
-		surfaceSizeY = surfaceCapabilites.surfaceCapabilities.currentExtent.height;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_vkPhysicaDevice, g_vkSurface, &g_vkSurfaceCapabilites);
+	if (g_vkSurfaceCapabilites.currentExtent.width < UINT32_MAX) {
+		surfaceSizeX = g_vkSurfaceCapabilites.currentExtent.width;
+		surfaceSizeY = g_vkSurfaceCapabilites.currentExtent.height;
 	}
 	{
 		// TODO: Move it out?
 		uint32_t formatCount = 0;
 		
-		vkGetPhysicalDeviceSurfaceFormats2KHR(g_vkPhysicaDevice, &surfaceInfo, &formatCount, nullptr);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(g_vkPhysicaDevice, g_vkSurface, &formatCount, nullptr);
 		if (formatCount > 0) {
 			assert(0 && "Surface formats missing");
 			exit(-1);
 		}
 
-		std::vector<VkSurfaceFormat2KHR> formats(formatCount);
-		vkGetPhysicalDeviceSurfaceFormats2KHR(g_vkPhysicaDevice, &surfaceInfo, &formatCount, formats.data());
-		if (formats[0].surfaceFormat.format == VK_FORMAT_UNDEFINED) {
-			g_vkSurfaceFormat.surfaceFormat.format		= VK_FORMAT_B8G8R8A8_UNORM;
-			g_vkSurfaceFormat.surfaceFormat.colorSpace	= VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		std::vector<VkSurfaceFormatKHR> formats(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(g_vkPhysicaDevice, g_vkSurface, &formatCount, formats.data());
+		if (formats[0].format == VK_FORMAT_UNDEFINED) {
+			g_vkSurfaceFormat.format		= VK_FORMAT_B8G8R8A8_UNORM;
+			g_vkSurfaceFormat.colorSpace	= VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 		}else {
 			g_vkSurfaceFormat = formats[0];
 		}
@@ -259,15 +254,51 @@ void VkDestroyDevice()
 	vkDestroyDevice(g_vkDevice, nullptr);
 	g_vkDevice = nullptr;
 }
+// Double buffering
+uint32_t g_vkSwapchainImageCount = 2;
 
 void VkCreateSwapChain() {
+
+	if (g_vkSwapchainImageCount > g_vkSurfaceCapabilites.maxImageCount) 
+		g_vkSwapchainImageCount = g_vkSurfaceCapabilites.maxImageCount;
+	if (g_vkSwapchainImageCount < g_vkSurfaceCapabilites.minImageCount + 1)
+		g_vkSwapchainImageCount = g_vkSurfaceCapabilites.minImageCount + 1;
+
+	VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	{
+		uint32_t pmCount = 0;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(g_vkPhysicaDevice, g_vkSurface, &pmCount, nullptr);
+		std::vector<VkPresentModeKHR> presentModes(pmCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(g_vkPhysicaDevice, g_vkSurface, &pmCount, presentModes.data());
+
+		// V-Sync by default
+		for (auto& m: presentModes) {
+			if (m == VK_PRESENT_MODE_MAILBOX_KHR) 
+				presentMode = m;
+		}
+	}
+
 	VkSwapchainCreateInfoKHR swapchainCreateInfo{};
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchainCreateInfo.surface = g_vkSurface;
-	swapchainCreateInfo.minImageCount = 2; // Double buffering
-
+	swapchainCreateInfo.surface					= g_vkSurface;
+	swapchainCreateInfo.minImageCount			= g_vkSwapchainImageCount; 
+	swapchainCreateInfo.imageFormat				= g_vkSurfaceFormat.format;
+	swapchainCreateInfo.imageColorSpace			= g_vkSurfaceFormat.colorSpace;
+	swapchainCreateInfo.imageExtent				= g_vkSurfaceCapabilites.currentExtent;
+	swapchainCreateInfo.imageArrayLayers		= 1; // 2 for stereoscopic
+	swapchainCreateInfo.imageUsage				= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageSharingMode		= VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.queueFamilyIndexCount	= 0;
+	swapchainCreateInfo.pQueueFamilyIndices		= nullptr;
+	swapchainCreateInfo.preTransform			= VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	swapchainCreateInfo.compositeAlpha			= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // TODO: check for more info
+	swapchainCreateInfo.presentMode				= presentMode;
+	swapchainCreateInfo.clipped					= VK_TRUE;	
+	swapchainCreateInfo.oldSwapchain			= VK_NULL_HANDLE;
 
 	VkCheckError(vkCreateSwapchainKHR(g_vkDevice, &swapchainCreateInfo, nullptr, &g_vkSwapchain));
+
+	VkCheckError(vkGetSwapchainImagesKHR(g_vkDevice, g_vkSwapchain, &g_vkSwapchainImageCount, nullptr));
 }
 void VkDestroySwapChain() {
 	vkDestroySwapchainKHR(g_vkDevice, g_vkSwapchain, nullptr);
