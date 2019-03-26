@@ -19,6 +19,7 @@ VkSemaphore					g_vkSemaphore					= VK_NULL_HANDLE;
 VkCommandPool				g_vkCommandPool					= VK_NULL_HANDLE;
 VkQueryPool					g_vkQueryPool					= VK_NULL_HANDLE;
 VkCommandBuffer				g_vkCmdBuffer					= VK_NULL_HANDLE;
+VkQueue						g_vkQueue						= VK_NULL_HANDLE;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
 std::vector<const char*>	instanceEnabledExtensionLayers	= {};
@@ -261,6 +262,8 @@ void VkCreateDevice()
 	deviceCreateInfo.ppEnabledExtensionNames = deviceEnabledExtensionLayers.data();
 
 	VkCheckError(vkCreateDevice(g_vkPhysicaDevice, &deviceCreateInfo, nullptr, &g_vkDevice));
+
+	vkGetDeviceQueue(g_vkDevice, g_vkGraphicsFamilyIndex, 0, &g_vkQueue);
 }
 
 void VkDestroyDevice()
