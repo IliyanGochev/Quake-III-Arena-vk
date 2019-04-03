@@ -134,7 +134,14 @@ void VKDrv_SetGamma(unsigned char red[256], unsigned char green[256], unsigned c
 
 int VKDrv_SumOfUsedImages()
 {
-	return -1;
+	int total = 0;
+	for (int i = 0; i < tr.numImages; i++) {
+		const vkImage_t* vkImg = &s_vkImages[tr.images[i]->index];
+		if (vkImg->frameUsed == tr.frameCount) {
+			total += vkImg->width * vkImg->height;
+		}
+	}
+	return total;
 }
 
 void VKDrv_GfxInfo()
