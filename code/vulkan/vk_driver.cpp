@@ -123,9 +123,9 @@ void VKDrv_DrawImage(const image_t* image, const float* coords, const float* tex
 }
 
 imageFormat_t VKDrv_GetImageFormat(const image_t* image)
-{
-	imageFormat_t r{};
-	return r;
+{	
+	// For now we re supporting RGBA8 only
+	return IMAGEFORMAT_RGBA;
 }
 
 void VKDrv_SetGamma(unsigned char red[256], unsigned char green[256], unsigned char blue[256])
