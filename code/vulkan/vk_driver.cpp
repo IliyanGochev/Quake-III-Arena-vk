@@ -3,6 +3,18 @@
 
 #include "../win32/win_vulkan.h"
 
+struct vkImage_t {
+	VkImage* textureImage;
+	VkDeviceMemory* textureDeviceMemory;
+	VkSampler* sampler;
+	VkFormat format;
+	int width;
+	int height;
+	int frameUsed;
+	qboolean dynamic;
+};
+
+static vkImage_t s_vkImages[MAX_DRAWIMAGES];
 void VkSetupVideoConfig()
 {
 	// TODO: Fix me!
@@ -11,7 +23,8 @@ void VkSetupVideoConfig()
 
 void VkInitDrawState()
 {
-	// TODO: fix me!
+	// Init images
+	Com_Memset(s_vkImages, 0, sizeof(s_vkImages));
 }
 
 VK_PUBLIC void VKDrv_DriverInit(void)
