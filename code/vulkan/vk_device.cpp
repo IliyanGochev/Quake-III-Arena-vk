@@ -302,7 +302,7 @@ void VkCreateSwapChain() {
 	VkSwapchainCreateInfoKHR swapchainCreateInfo {};
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCreateInfo.surface					= g_vkSurface;
-	swapchainCreateInfo.minImageCount			= g_vkSwapchainImageCount; 
+	swapchainCreateInfo.minImageCount			= g_vkSwapchainImageCount; // TODO: Change to SMP_FRAMES?
 	swapchainCreateInfo.imageFormat				= g_vkSurfaceFormat.format;
 	swapchainCreateInfo.imageColorSpace			= g_vkSurfaceFormat.colorSpace;
 	swapchainCreateInfo.imageExtent				= g_vkSurfaceCapabilites.currentExtent;
