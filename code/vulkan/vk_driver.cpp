@@ -1,12 +1,14 @@
 #include "vk_common.h"
 #include "vk_driver.h"
-
+#include "vk_state.h"
 #include "../win32/win_vulkan.h"
 
+#include <cmath>
 struct vkImage_t {
-	VkImage* textureImage;
-	VkDeviceMemory* textureDeviceMemory;
-	VkSampler* sampler;
+	VkImage textureImage;
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingMemory;
+	VkSampler sampler;
 	VkFormat format;
 	int width;
 	int height;
@@ -106,8 +108,73 @@ void VKDrv_ReadStencil(int x, int y, int width, int height, byte* dest)
 {
 }
 
+void CreateVÍImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
+	vkImage_t* vkImg = &s_vkImages[image->index];
+	Com_Memset(vkImg, 0, sizeof(vkImage_t));
+
+	// We are defaulting to RGBA8 images for now
+	vkImg->format = VK_FORMAT_R8G8B8A8_UNORM;
+
+	if (Q_strncmp(image->imgName, "*scratch", sizeof(image->imgName))) {
+		vkImg->dynamic = qtrue;
+	}
+
+	size_t imageSizeBytes = image->width * image->height * sizeof(UINT);
+	void* lightscaledCopy = ri.Hunk_AllocateTempMemory((int)imageSizeBytes);
+	memcpy(lightscaledCopy, pic, imageSizeBytes);
+	R_LightScaleTexture((unsigned int*)lightscaledCopy, 
+		image->width, 
+		image->height, 
+		(qboolean)(mipLevels == 1));
+
+	
+	VkMemoryAllocateInfo memoryAllocateInfo{};
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+	VkMemoryRequirements memoryRequirements {};
+
+	// Allocate staging buffer
+	{
+		VkDeviceSize deviceSize = vkImg->width * vkImg->height * 4;
+
+		VkBufferCreateInfo createInfo{};
+		createInfo.sType		= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		createInfo.size			= deviceSize;
+		createInfo.usage		= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		createInfo.sharingMode	= VK_SHARING_MODE_EXCLUSIVE;
+
+		VkCheckError(vkCreateBuffer(g_vkDevice, &createInfo, nullptr, &vkImg->stagingBuffer));
+	}
+	{
+		VkImageCreateInfo createInfo{};
+		createInfo.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		createInfo.imageType		= VK_IMAGE_TYPE_2D;
+		createInfo.extent.width		= image->width;
+		createInfo.extent.height	= image->height;
+		createInfo.extent.depth		= 1;
+		createInfo.mipLevels		= mipLevels;
+		createInfo.arrayLayers		= 1;
+		createInfo.format			= vkImg->format;
+		createInfo.tiling			= VK_IMAGE_TILING_OPTIMAL;
+		createInfo.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+		createInfo.usage			= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		createInfo.sharingMode		= VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.samples			= VK_SAMPLE_COUNT_1_BIT; // TODO: Change this ?
+
+	VkCheckError(vkCreateImage(g_vkDevice, &createInfo, nullptr, &vkImg->textureImage));
+	}
+	vkGetImageMemoryRequirements(g_vkDevice, vkImg->textureImage, &memoryRequirements);
+
+	
+}
+
 void VKDrv_CreateImage(const image_t* image, const byte* pic, qboolean isLightmap)
 {
+	int mipLevels = 0;
+	if (image->mipmap) {		
+		mipLevels = static_cast<int>( 
+			std::floor(std::log2(max(image->width, image->height)))) + 1;
+	}
+	CreateVÍImage(image, mipLevels, pic, isLightmap);
 }
 
 void VKDrv_DeleteImage(const image_t* image)

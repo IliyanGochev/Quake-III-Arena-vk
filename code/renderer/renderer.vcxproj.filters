@@ -504,6 +504,9 @@
     <ClInclude Include="..\vulkan\vk_device.h">
       <Filter>Vulkan Implementation</Filter>
     </ClInclude>
+    <ClInclude Include="..\vulkan\vk_state.h">
+      <Filter>Vulkan Implementation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\ft2\ahangles.h">
