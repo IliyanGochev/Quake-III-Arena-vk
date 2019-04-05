@@ -32,6 +32,7 @@ VkQueryPool							g_vkQueryPool					= VK_NULL_HANDLE;
 VkCommandBuffer						g_vkCmdBuffer					= VK_NULL_HANDLE;
 VkQueue								g_vkQueue						= VK_NULL_HANDLE;
 VkPipeline							g_vkPipeline					= VK_NULL_HANDLE;
+VkRenderPass						g_vkRenderPass					= VK_NULL_HANDLE;
 
 // Depth & Stencil
 VkImage								g_vkDepthStencilImage			= VK_NULL_HANDLE;
@@ -398,6 +399,58 @@ void CreateSyncPrimitives() {
 void VkDestroySyncPrimitives() {
 	vkDestroySemaphore(g_vkDevice, g_vkSemaphore, nullptr);
 	vkDestroyFence(g_vkDevice, g_vkSwapchainFence, nullptr);
+}
+
+void VkCreateRenderPass() {
+	VkAttachmentDescription attachments[2];
+
+	// Depth
+	attachments[0].flags = 0;
+	attachments[0].format =  g_vkDepthStencilFormat;
+	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachments[0].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	// Color
+	attachments[1].flags = 0;
+	attachments[1].format =  g_vkSurfaceFormat.format;
+	attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+	attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // Could be don't care
+	attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachments[1].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference subpassDepthAttachmentRef{};
+	subpassDepthAttachmentRef.attachment	= 0;
+	subpassDepthAttachmentRef.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference subpassColorAttachmentRef{};
+	subpassColorAttachmentRef.attachment	= 1;
+	subpassColorAttachmentRef.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass{};
+	subpass.pipelineBindPoint		= VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.inputAttachmentCount	= 0;
+	subpass.pInputAttachments		= nullptr;
+	subpass.colorAttachmentCount	= 1;
+	subpass.pColorAttachments		= &subpassColorAttachmentRef;
+	subpass.pDepthStencilAttachment = &subpassDepthAttachmentRef;
+	
+	VkRenderPassCreateInfo createInfo{};
+	createInfo.sType				= VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	createInfo.attachmentCount		= 2;
+	createInfo.pAttachments			= attachments;
+	createInfo.subpassCount			= 1;
+	createInfo.pSubpasses			= &subpass;
+
+	VkCheckError( vkCreateRenderPass(g_vkDevice, &createInfo, nullptr, &g_vkRenderPass));
+}
+
+void VkDestroyRenderPas() {
+	vkDestroyRenderPass(g_vkDevice, g_vkRenderPass, nullptr);
 }
 
 
