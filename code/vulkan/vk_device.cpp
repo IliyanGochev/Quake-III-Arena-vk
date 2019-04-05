@@ -8,18 +8,21 @@
 VkInstance					g_vkInstance					= nullptr;
 VkDevice					g_vkDevice						= nullptr;
 VkPhysicalDevice			g_vkPhysicaDevice				= nullptr;
-VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	= {};
-VkSwapchainKHR				g_vkSwapchain					= {};
-VkSurfaceKHR				g_vkSurface						= {};
-VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			= {};
-VkSurfaceFormatKHR			g_vkSurfaceFormat				= {};
-uint32_t					g_vkGraphicsFamilyIndex			= 0;
+VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	{};
+VkSwapchainKHR				g_vkSwapchain					{};
 VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
+uint32_t					g_vkSwapchainImageCount			= 2; // Double buffering
+std::vector<VkImage>		g_vkSwapchainImages				{};
+VkSurfaceKHR				g_vkSurface						{};
+VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			{};
+VkSurfaceFormatKHR			g_vkSurfaceFormat				{};
+uint32_t					g_vkGraphicsFamilyIndex			= 0;
 VkSemaphore					g_vkSemaphore					= VK_NULL_HANDLE;
 VkCommandPool				g_vkCommandPool					= VK_NULL_HANDLE;
 VkQueryPool					g_vkQueryPool					= VK_NULL_HANDLE;
 VkCommandBuffer				g_vkCmdBuffer					= VK_NULL_HANDLE;
 VkQueue						g_vkQueue						= VK_NULL_HANDLE;
+VkPipeline					g_vkPipeline					= VK_NULL_HANDLE;
 
 std::vector<const char*>	instanceEnabledLayers			= {};
 std::vector<const char*>	instanceEnabledExtensionLayers	= {};
@@ -273,8 +276,7 @@ void VkDestroyDevice()
 	vkDestroyDevice(g_vkDevice, nullptr);
 	g_vkDevice = nullptr;
 }
-// Double buffering
-uint32_t g_vkSwapchainImageCount = 2;
+
 
 void VkCreateSwapChain() {
 
