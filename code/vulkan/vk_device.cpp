@@ -594,10 +594,12 @@ void VkCreateInstance()
 
 	// Create Command Buffer
 	VkCreateCommandBuffer();
+	VkCreateRenderPass();
 }
 
 void VkDestroyInstance()
 {
+	VkDestroyRenderPas();
 	VkDestroyCommandBuffer();
 	VkDestroyCommandPool();
 	VkDestroyQueryPool();
