@@ -13,6 +13,7 @@ VkSwapchainKHR				g_vkSwapchain					{};
 VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
 uint32_t					g_vkSwapchainImageCount			= 2; // Double buffering
 std::vector<VkImage>		g_vkSwapchainImages				{};
+std::vector<VkImageView>	g_vkSwapchainImageViews			{};
 VkSurfaceKHR				g_vkSurface						{};
 VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			{};
 VkSurfaceFormatKHR			g_vkSurfaceFormat				{};
@@ -320,6 +321,29 @@ void VkCreateSwapChain() {
 	VkCheckError(vkCreateSwapchainKHR(g_vkDevice, &swapchainCreateInfo, nullptr, &g_vkSwapchain));
 
 	VkCheckError(vkGetSwapchainImagesKHR(g_vkDevice, g_vkSwapchain, &g_vkSwapchainImageCount, nullptr));
+	assert(g_vkSwapchainImageCount && "vkGetSwapchainImagesKHR returned zero image count");
+	g_vkSwapchainImages.resize(g_vkSwapchainImageCount);
+	VkCheckError(vkGetSwapchainImagesKHR(g_vkDevice, g_vkSwapchain, &g_vkSwapchainImageCount, g_vkSwapchainImages.data()));
+
+	g_vkSwapchainImageViews.resize(g_vkSwapchainImageCount);
+	for (uint32_t i = 0; i< g_vkSwapchainImageCount; i++) {
+		VkImageViewCreateInfo createInfo{};
+		createInfo.sType							= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image							= g_vkSwapchainImages[i];
+		createInfo.viewType							= VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format							= g_vkSurfaceFormat.format;
+		createInfo.components.r						= VK_COMPONENT_SWIZZLE_R;
+		createInfo.components.g						= VK_COMPONENT_SWIZZLE_G;
+		createInfo.components.b						= VK_COMPONENT_SWIZZLE_B;
+		createInfo.components.a						= VK_COMPONENT_SWIZZLE_A;
+		createInfo.subresourceRange.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel	= 0;
+		createInfo.subresourceRange.levelCount		= 1;
+		createInfo.subresourceRange.baseArrayLayer	= 0;
+		createInfo.subresourceRange.layerCount		= 1;
+
+		VkCheckError(vkCreateImageView(g_vkDevice, &createInfo, nullptr, &g_vkSwapchainImageViews[i]));
+	}
 }
 void VkDestroySwapChain() {
 	vkDestroySwapchainKHR(g_vkDevice, g_vkSwapchain, nullptr);
