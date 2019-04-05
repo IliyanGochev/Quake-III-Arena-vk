@@ -346,6 +346,9 @@ void VkCreateSwapChain() {
 	}
 }
 void VkDestroySwapChain() {
+	for (auto iv : g_vkSwapchainImageViews) {
+		vkDestroyImageView(g_vkDevice, iv, nullptr);
+	}
 	vkDestroySwapchainKHR(g_vkDevice, g_vkSwapchain, nullptr);
 }
 
