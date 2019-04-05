@@ -33,6 +33,7 @@ VkCommandBuffer						g_vkCmdBuffer					= VK_NULL_HANDLE;
 VkQueue								g_vkQueue						= VK_NULL_HANDLE;
 VkPipeline							g_vkPipeline					= VK_NULL_HANDLE;
 VkRenderPass						g_vkRenderPass					= VK_NULL_HANDLE;
+std::vector<VkFramebuffer>			g_vkFramebuffers				{};
 
 // Depth & Stencil
 VkImage								g_vkDepthStencilImage			= VK_NULL_HANDLE;
@@ -455,6 +456,32 @@ void VkDestroyRenderPas() {
 	vkDestroyRenderPass(g_vkDevice, g_vkRenderPass, nullptr);
 }
 
+void VkCreateFramebuffers() {
+	g_vkFramebuffers.resize(g_vkSwapchainImageCount);
+	for(uint32_t i = 0; i < g_vkSwapchainImageCount; ++i) {
+		VkImageView attachments[2];
+
+		attachments[0] = g_vkDepthStencilImageView;
+		attachments[1] = g_vkSwapchainImageViews[i];
+
+		VkFramebufferCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		createInfo.renderPass = g_vkRenderPass;
+		createInfo.attachmentCount = 2;
+		createInfo.pAttachments = attachments;
+		createInfo.width =  g_vkSurfaceCapabilites.currentExtent.width;
+		createInfo.height = g_vkSurfaceCapabilites.currentExtent.height;
+		createInfo.layers = 1;
+
+		VkCheckError(vkCreateFramebuffer(g_vkDevice, &createInfo, nullptr, &g_vkFramebuffers[i]));
+	}
+}
+
+void VkDestroyFramebuffers() {
+	for (auto f: g_vkFramebuffers) {
+		vkDestroyFramebuffer(g_vkDevice, f, nullptr);
+	}	
+}
 
 void VkCreateDepthStencilImage() {
 
@@ -594,11 +621,15 @@ void VkCreateInstance()
 
 	// Create Command Buffer
 	VkCreateCommandBuffer();
+
 	VkCreateRenderPass();
+
+	VkCreateFramebuffers();
 }
 
 void VkDestroyInstance()
 {
+	VkDestroyFramebuffers();
 	VkDestroyRenderPas();
 	VkDestroyCommandBuffer();
 	VkDestroyCommandPool();
