@@ -9,6 +9,7 @@ VkInstance					g_vkInstance					= nullptr;
 VkDevice					g_vkDevice						= nullptr;
 VkPhysicalDevice			g_vkPhysicaDevice				= nullptr;
 VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	{};
+VkPhysicalDeviceMemoryProperties g_vkPhysicalDeviceMemoryProperties{};
 VkSwapchainKHR				g_vkSwapchain					{};
 VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
 uint32_t					g_vkSwapchainImageCount			= 2; // Double buffering
@@ -226,6 +227,7 @@ void VkCreateDevice()
 			exit(-1);
 		}
 		vkGetPhysicalDeviceProperties(g_vkPhysicaDevice, &g_vkPhysicalDeviceProperties);
+		vkGetPhysicalDeviceMemoryProperties(g_vkPhysicaDevice, &g_vkPhysicalDeviceMemoryProperties);
 	}
 
 	//N.B! For now we will use 1 Queue!
