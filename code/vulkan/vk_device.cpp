@@ -5,34 +5,48 @@
 
 
 // TODO: Cleanup into a state struct?
-VkInstance					g_vkInstance					= nullptr;
-VkDevice					g_vkDevice						= nullptr;
-VkPhysicalDevice			g_vkPhysicaDevice				= nullptr;
-VkPhysicalDeviceProperties	g_vkPhysicalDeviceProperties	{};
-VkPhysicalDeviceMemoryProperties g_vkPhysicalDeviceMemoryProperties{};
-VkSwapchainKHR				g_vkSwapchain					{};
-VkFence						g_vkSwapchainFence				= VK_NULL_HANDLE;
-uint32_t					g_vkSwapchainImageCount			= 2; // Double buffering
-std::vector<VkImage>		g_vkSwapchainImages				{};
-std::vector<VkImageView>	g_vkSwapchainImageViews			{};
-VkSurfaceKHR				g_vkSurface						{};
-VkSurfaceCapabilitiesKHR	g_vkSurfaceCapabilites			{};
-VkSurfaceFormatKHR			g_vkSurfaceFormat				{};
-uint32_t					g_vkGraphicsFamilyIndex			= 0;
-VkSemaphore					g_vkSemaphore					= VK_NULL_HANDLE;
-VkCommandPool				g_vkCommandPool					= VK_NULL_HANDLE;
-VkQueryPool					g_vkQueryPool					= VK_NULL_HANDLE;
-VkCommandBuffer				g_vkCmdBuffer					= VK_NULL_HANDLE;
-VkQueue						g_vkQueue						= VK_NULL_HANDLE;
-VkPipeline					g_vkPipeline					= VK_NULL_HANDLE;
+VkInstance							g_vkInstance					= nullptr;
+// Device-specific
+VkDevice							g_vkDevice						= nullptr;
+VkPhysicalDevice					g_vkPhysicaDevice				= nullptr;
+VkPhysicalDeviceProperties			g_vkPhysicalDeviceProperties	{};
+VkPhysicalDeviceMemoryProperties	g_vkPhysicalDeviceMemoryProperties{};
+uint32_t							g_vkGraphicsFamilyIndex			= 0;
+uint32_t							g_vkPresenterFamilyIndex		= 0;
+// Swapchain-specific
+VkSwapchainKHR						g_vkSwapchain					{};
+VkFence								g_vkSwapchainFence				= VK_NULL_HANDLE;
+uint32_t							g_vkSwapchainImageCount			= 2; // Double buffering
+std::vector<VkImage>				g_vkSwapchainImages				{};
+std::vector<VkImageView>			g_vkSwapchainImageViews			{};
+// Surface-specific
+VkSurfaceKHR						g_vkSurface						{};
+VkSurfaceCapabilitiesKHR			g_vkSurfaceCapabilites			{};
+VkSurfaceFormatKHR					g_vkSurfaceFormat				{};
 
-std::vector<const char*>	instanceEnabledLayers			= {};
-std::vector<const char*>	instanceEnabledExtensionLayers	= {};
-std::vector<const char*>	deviceEnabledLayers				= {};
-std::vector<const char*>	deviceEnabledExtensionLayers	= {};
+// Sync-primitives
+VkSemaphore							g_vkSemaphore					= VK_NULL_HANDLE;
+VkCommandPool						g_vkCommandPool					= VK_NULL_HANDLE;
+// Commands & Queries
+VkQueryPool							g_vkQueryPool					= VK_NULL_HANDLE;
+VkCommandBuffer						g_vkCmdBuffer					= VK_NULL_HANDLE;
+VkQueue								g_vkQueue						= VK_NULL_HANDLE;
+VkPipeline							g_vkPipeline					= VK_NULL_HANDLE;
 
-VkDebugReportCallbackEXT	debugPrintHandle				= {};
-VkDebugReportCallbackCreateInfoEXT debugReportCreateCallbackInfo{};
+// Depth & Stencil
+VkImage								g_vkDepthStencilImage			= VK_NULL_HANDLE;
+VkImageView							g_vkDepthStencilImageView		= VK_NULL_HANDLE;
+VkDeviceMemory						g_vkDepthStencilImageMemory		= VK_NULL_HANDLE;
+VkFormat							g_vkDepthStencilFormat			= VK_FORMAT_UNDEFINED;
+bool								g_vkStencilAvailable			= false;
+
+std::vector<const char*>			instanceEnabledLayers			= {};
+std::vector<const char*>			instanceEnabledExtensionLayers	= {};
+std::vector<const char*>			deviceEnabledLayers				= {};
+std::vector<const char*>			deviceEnabledExtensionLayers	= {};
+
+VkDebugReportCallbackEXT			debugPrintHandle				= {};
+VkDebugReportCallbackCreateInfoEXT	debugReportCreateCallbackInfo{};
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 VkDebugCallback(
@@ -74,6 +88,20 @@ VkDebugCallback(
 
 uint32_t surfaceSizeX = 0;
 uint32_t surfaceSizeY = 0;
+
+uint32_t FindMemoryTypeIndex(const VkMemoryRequirements* memoryRequirements, VkMemoryPropertyFlags requiredMemoryProperties) {
+	for (uint32_t i = 0; g_vkPhysicalDeviceMemoryProperties.memoryTypeCount; ++i) {
+		if (memoryRequirements->memoryTypeBits & (1 << i)) {
+			// TODO: think more about this checks
+			if ((g_vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & requiredMemoryProperties) == requiredMemoryProperties) {
+				return i;
+				break;
+			}
+		}
+	}
+	assert(0 && "No sutable memory type found");
+	return UINT32_MAX;
+}
 
 void VkCreateSurface() {
 	VkWin32SurfaceCreateInfoKHR createInfo = {};
@@ -373,6 +401,100 @@ void VkDestroySyncPrimitives() {
 }
 
 
+void VkCreateDepthStencilImage() {
+
+	{
+		{
+			std::vector<VkFormat> expectedFormats{
+				VK_FORMAT_D32_SFLOAT_S8_UINT,
+				VK_FORMAT_D24_UNORM_S8_UINT,
+				VK_FORMAT_D16_UNORM_S8_UINT,
+				VK_FORMAT_D32_SFLOAT,
+				VK_FORMAT_D16_UNORM
+			};
+
+			for (auto f : expectedFormats) {
+				VkFormatProperties formatProperties{};
+				vkGetPhysicalDeviceFormatProperties(g_vkPhysicaDevice, f, &formatProperties);
+
+				if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+					g_vkDepthStencilFormat = f;
+					break;
+				}
+			}
+			if (g_vkDepthStencilFormat == VK_FORMAT_UNDEFINED) {
+				assert(0 && "Depth stencil format not selected");
+				std::exit(-1);
+			}
+			if (g_vkDepthStencilFormat == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+				g_vkDepthStencilFormat == VK_FORMAT_D24_UNORM_S8_UINT ||
+				g_vkDepthStencilFormat == VK_FORMAT_D16_UNORM_S8_UINT) {
+				g_vkStencilAvailable = true;
+			}
+		}
+
+
+		VkImageCreateInfo createInfo{};
+		createInfo.sType					= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		createInfo.flags					=  0;
+		createInfo.imageType				= VK_IMAGE_TYPE_2D;
+		createInfo.format					= g_vkDepthStencilFormat;
+		createInfo.extent.width				= g_vkSurfaceCapabilites.currentExtent.width;
+		createInfo.extent.height			= g_vkSurfaceCapabilites.currentExtent.height;
+		createInfo.extent.depth				= 1;
+		createInfo.mipLevels				= 1;
+		createInfo.arrayLayers				= 1;
+		createInfo.samples					= VK_SAMPLE_COUNT_1_BIT;
+		createInfo.tiling					= VK_IMAGE_TILING_OPTIMAL;
+		createInfo.usage					= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		createInfo.sharingMode				= VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount	= VK_QUEUE_FAMILY_IGNORED;
+		createInfo.pQueueFamilyIndices		= nullptr;
+		createInfo.initialLayout			= VK_IMAGE_LAYOUT_UNDEFINED;
+
+		VkCheckError(vkCreateImage(g_vkDevice, &createInfo, nullptr, &g_vkDepthStencilImage));
+
+		VkMemoryRequirements memoryRequirements{};
+		vkGetImageMemoryRequirements(g_vkDevice, g_vkDepthStencilImage, &memoryRequirements);
+
+		auto requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		uint32_t memoryIndex = FindMemoryTypeIndex(&memoryRequirements, requiredMemoryProperties);
+
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType			= VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize	= memoryRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex	= memoryIndex;
+
+		vkAllocateMemory(g_vkDevice, &memoryAllocateInfo, nullptr, &g_vkDepthStencilImageMemory);
+		vkBindImageMemory(g_vkDevice, g_vkDepthStencilImage, g_vkDepthStencilImageMemory, 0);
+	}
+
+	{
+		VkImageViewCreateInfo createInfo{};
+		createInfo.sType							= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image							= g_vkDepthStencilImage;
+		createInfo.viewType							= VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format							= g_vkDepthStencilFormat;
+		createInfo.components.r						= VK_COMPONENT_SWIZZLE_R;
+		createInfo.components.g						= VK_COMPONENT_SWIZZLE_G;
+		createInfo.components.b						= VK_COMPONENT_SWIZZLE_B;
+		createInfo.components.a						= VK_COMPONENT_SWIZZLE_A;
+		createInfo.subresourceRange.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | (g_vkStencilAvailable ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
+		createInfo.subresourceRange.baseMipLevel	= 0;
+		createInfo.subresourceRange.levelCount		= 1;
+		createInfo.subresourceRange.baseArrayLayer	= 0;
+		createInfo.subresourceRange.layerCount		= 1;
+
+		VkCheckError(vkCreateImageView(g_vkDevice, &createInfo, nullptr, &g_vkDepthStencilImageView));
+	}
+}
+
+void VkDestroyDepthStencilImage() {
+	vkDestroyImageView(g_vkDevice, g_vkDepthStencilImageView, nullptr);
+	vkFreeMemory(g_vkDevice, g_vkDepthStencilImageMemory, nullptr);
+	vkDestroyImage(g_vkDevice, g_vkDepthStencilImage, nullptr);
+}
+
 void VkCreateInstance()
 {
 	SetupDebugLayers();	
@@ -403,7 +525,9 @@ void VkCreateInstance()
 	VkCreateDevice();
 	VkCreateSurface();
 
-	VkCreateSwapChain();	
+	VkCreateSwapChain();
+
+	VkCreateDepthStencilImage();
 
 	CreateSyncPrimitives();
 
@@ -422,7 +546,8 @@ void VkDestroyInstance()
 	VkDestroyCommandBuffer();
 	VkDestroyCommandPool();
 	VkDestroyQueryPool();
-	VkDestroySyncPrimitives();	
+	VkDestroySyncPrimitives();
+	VkDestroyDepthStencilImage();
 	VkDestroySwapChain();
 	VkDestroySurface();
 	VkDestroyDevice();
