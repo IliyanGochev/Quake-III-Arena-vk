@@ -6,8 +6,8 @@
 #include <cmath>
 struct vkImage_t {
 	VkImage textureImage;
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingMemory;
+	VkImageView textureImageView;
+	VkDeviceMemory textureImageMemory;
 	VkSampler sampler;
 	VkFormat format;
 	int width;
@@ -113,7 +113,9 @@ void CreateVêImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 	Com_Memset(vkImg, 0, sizeof(vkImage_t));
 
 	// We are defaulting to RGBA8 images for now
-	vkImg->format = VK_FORMAT_R8G8B8A8_UNORM;
+	vkImg->width	= image->width;
+	vkImg->height	= image->height;
+	vkImg->format	= VK_FORMAT_R8G8B8A8_UNORM;
 
 	if (Q_strncmp(image->imgName, "*scratch", sizeof(image->imgName))) {
 		vkImg->dynamic = qtrue;
@@ -127,23 +129,40 @@ void CreateVêImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 		image->height, 
 		(qboolean)(mipLevels == 1));
 
-	
-	VkMemoryAllocateInfo memoryAllocateInfo{};
-	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
-	VkMemoryRequirements memoryRequirements {};
-
+	VkDeviceSize imageDeviceSize = vkImg->width * vkImg->height * 4;
 	// Allocate staging buffer
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
 	{
-		VkDeviceSize deviceSize = vkImg->width * vkImg->height * 4;
-
 		VkBufferCreateInfo createInfo{};
 		createInfo.sType		= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		createInfo.size			= deviceSize;
+		createInfo.size			= imageDeviceSize;
 		createInfo.usage		= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		createInfo.sharingMode	= VK_SHARING_MODE_EXCLUSIVE;
 
-		VkCheckError(vkCreateBuffer(g_vkDevice, &createInfo, nullptr, &vkImg->stagingBuffer));
+		VkCheckError(vkCreateBuffer(g_vkDevice, &createInfo, nullptr, &stagingBuffer));
+
+		VkMemoryRequirements memoryRequirements{};
+		vkGetBufferMemoryRequirements(g_vkDevice, stagingBuffer, &memoryRequirements);
+
+		VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize = memoryRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex = FindMemoryTypeIndex(
+			&g_vkPhysicalDeviceMemoryProperties,
+			&memoryRequirements, propertyFlags);
+
+		// Could result in lots of allocations
+		VkCheckError(vkAllocateMemory(g_vkDevice, &memoryAllocateInfo, nullptr, &stagingBufferMemory));
+		VkCheckError(vkBindBufferMemory(g_vkDevice, stagingBuffer, stagingBufferMemory, 0));
+
+		void* data;
+		VkCheckError(vkMapMemory(g_vkDevice, stagingBufferMemory, 0, imageDeviceSize, 0, &data));
+		memcpy(data, pic, static_cast<size_t> (imageDeviceSize));
+		vkUnmapMemory(g_vkDevice, stagingBufferMemory);
 	}
+	// Create the image
 	{
 		VkImageCreateInfo createInfo{};
 		createInfo.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -160,16 +179,30 @@ void CreateVêImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 		createInfo.sharingMode		= VK_SHARING_MODE_EXCLUSIVE;
 		createInfo.samples			= VK_SAMPLE_COUNT_1_BIT; // TODO: Change this ?
 
-	VkCheckError(vkCreateImage(g_vkDevice, &createInfo, nullptr, &vkImg->textureImage));
-	}
-	vkGetImageMemoryRequirements(g_vkDevice, vkImg->textureImage, &memoryRequirements);
+		VkCheckError(vkCreateImage(g_vkDevice, &createInfo, nullptr, &vkImg->textureImage));
 
-	
+		VkMemoryRequirements memoryRequirements{};
+		vkGetImageMemoryRequirements(g_vkDevice, vkImg->textureImage, &memoryRequirements);
+		VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize = memoryRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex = FindMemoryTypeIndex(
+			&g_vkPhysicalDeviceMemoryProperties,
+			&memoryRequirements, propertyFlags);
+		VkCheckError(vkAllocateMemory(g_vkDevice, &memoryAllocateInfo, nullptr, &vkImg->textureImageMemory));
+		vkBindImageMemory(g_vkDevice, vkImg->textureImage, vkImg->textureImageMemory, 0);
+	}
+	// Copy the data from staging to image
+
+	// free the staging buffers
+	vkDestroyBuffer(g_vkDevice, stagingBuffer, nullptr);
+	vkFreeMemory(g_vkDevice, stagingBufferMemory, nullptr);
 }
 
 void VKDrv_CreateImage(const image_t* image, const byte* pic, qboolean isLightmap)
 {
-	int mipLevels = 0;
+	int mipLevels = 1;
 	if (image->mipmap) {		
 		mipLevels = static_cast<int>( 
 			std::floor(std::log2(max(image->width, image->height)))) + 1;
@@ -179,10 +212,16 @@ void VKDrv_CreateImage(const image_t* image, const byte* pic, qboolean isLightma
 
 void VKDrv_DeleteImage(const image_t* image)
 {
+	vkImage_t* vkImg = &g_vkImages[image->index];
+
+	vkFreeMemory(g_vkDevice, vkImg->textureImageMemory, nullptr);
+	vkDestroyImageView(g_vkDevice, vkImg->textureImageView, nullptr);
+	vkDestroyImage(g_vkDevice, vkImg->textureImage, nullptr);
 }
 
 void VKDrv_UpdateCinematic(const image_t* image, const byte* pic, int cols, int rows, qboolean dirty)
 {
+
 }
 
 void VKDrv_DrawImage(const image_t* image, const float* coords, const float* texcoords, const float* color)
