@@ -16,7 +16,7 @@ struct vkImage_t {
 	qboolean dynamic;
 };
 
-static vkImage_t s_vkImages[MAX_DRAWIMAGES];
+static vkImage_t g_vkImages[MAX_DRAWIMAGES];
 void VkSetupVideoConfig()
 {
 	// TODO: Fix me!
@@ -26,7 +26,7 @@ void VkSetupVideoConfig()
 void VkInitDrawState()
 {
 	// Init images
-	Com_Memset(s_vkImages, 0, sizeof(s_vkImages));
+	Com_Memset(g_vkImages, 0, sizeof(g_vkImages));
 }
 
 VK_PUBLIC void VKDrv_DriverInit(void)
@@ -109,7 +109,7 @@ void VKDrv_ReadStencil(int x, int y, int width, int height, byte* dest)
 }
 
 void CreateVêImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
-	vkImage_t* vkImg = &s_vkImages[image->index];
+	vkImage_t* vkImg = &g_vkImages[image->index];
 	Com_Memset(vkImg, 0, sizeof(vkImage_t));
 
 	// We are defaulting to RGBA8 images for now
@@ -203,7 +203,7 @@ int VKDrv_SumOfUsedImages()
 {
 	int total = 0;
 	for (int i = 0; i < tr.numImages; i++) {
-		const vkImage_t* vkImg = &s_vkImages[tr.images[i]->index];
+		const vkImage_t* vkImg = &g_vkImages[tr.images[i]->index];
 		if (vkImg->frameUsed == tr.frameCount) {
 			total += vkImg->width * vkImg->height;
 		}
