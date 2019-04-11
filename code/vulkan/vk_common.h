@@ -12,4 +12,9 @@ extern "C" {
 #define VK_PUBLIC extern "C"
 
 void VkCheckError(VkResult result);
+
+uint32_t FindMemoryTypeIndex(VkPhysicalDeviceMemoryProperties* properties,
+	const VkMemoryRequirements* memoryRequirements, 
+	VkMemoryPropertyFlags requiredMemoryProperties);
+
 #endif

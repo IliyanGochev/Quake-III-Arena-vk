@@ -91,19 +91,6 @@ VkDebugCallback(
 uint32_t surfaceSizeX = 0;
 uint32_t surfaceSizeY = 0;
 
-uint32_t FindMemoryTypeIndex(const VkMemoryRequirements* memoryRequirements, VkMemoryPropertyFlags requiredMemoryProperties) {
-	for (uint32_t i = 0; g_vkPhysicalDeviceMemoryProperties.memoryTypeCount; ++i) {
-		if (memoryRequirements->memoryTypeBits & (1 << i)) {
-			// TODO: think more about this checks
-			if ((g_vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & requiredMemoryProperties) == requiredMemoryProperties) {
-				return i;
-				break;
-			}
-		}
-	}
-	assert(0 && "No sutable memory type found");
-	return UINT32_MAX;
-}
 
 void VkCreateSurface() {
 	VkWin32SurfaceCreateInfoKHR createInfo = {};
@@ -539,8 +526,9 @@ void VkCreateDepthStencilImage() {
 		VkMemoryRequirements memoryRequirements{};
 		vkGetImageMemoryRequirements(g_vkDevice, g_vkDepthStencilImage, &memoryRequirements);
 
-		auto requiredMemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		uint32_t memoryIndex = FindMemoryTypeIndex(&memoryRequirements, requiredMemoryProperties);
+		VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		uint32_t memoryIndex = FindMemoryTypeIndex(&g_vkPhysicalDeviceMemoryProperties, 
+			&memoryRequirements, propertyFlags);
 
 		VkMemoryAllocateInfo memoryAllocateInfo{};
 		memoryAllocateInfo.sType			= VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

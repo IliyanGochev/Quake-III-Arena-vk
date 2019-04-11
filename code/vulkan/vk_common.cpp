@@ -102,3 +102,19 @@ void VkCheckError(VkResult result)
 		assert(0 && "Error occurred!");
 	}
 }
+
+uint32_t FindMemoryTypeIndex(VkPhysicalDeviceMemoryProperties* memoryProperties,
+							const VkMemoryRequirements* memoryRequirements,
+							VkMemoryPropertyFlags requiredMemoryProperties) {
+	for (uint32_t i = 0; memoryProperties->memoryTypeCount; ++i) {
+		if (memoryRequirements->memoryTypeBits & (1 << i)) {
+			// TODO: think more about this checks
+			if ((memoryProperties->memoryTypes[i].propertyFlags & requiredMemoryProperties) == requiredMemoryProperties) {
+				return i;
+				break;
+			}
+		}
+	}
+	assert(0 && "No sutable memory type found");
+	return UINT32_MAX;
+}
