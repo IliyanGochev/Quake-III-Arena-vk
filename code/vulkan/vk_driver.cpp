@@ -289,6 +289,11 @@ void VKDrv_DeleteImage(const image_t* image)
 
 void VKDrv_UpdateCinematic(const image_t* image, const byte* pic, int cols, int rows, qboolean dirty)
 {
+	// TODO:(.plan) To have cinematics we need to implement:
+	//		VKDrv_SetViewport
+	//		VKDrv_SetProjection
+	//		VKDrv_ResetState2D ?
+	//		VKDrv_DrawImage
 
 }
 
