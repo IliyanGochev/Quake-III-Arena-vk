@@ -17,4 +17,7 @@ uint32_t FindMemoryTypeIndex(VkPhysicalDeviceMemoryProperties* properties,
 	const VkMemoryRequirements* memoryRequirements, 
 	VkMemoryPropertyFlags requiredMemoryProperties);
 
+void VkCopyBuffer(VkCommandBuffer& commandBuffer, VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize size);
+void VkCopyBufferToImage(VkCommandBuffer& commandBuffer, VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
+
 #endif
