@@ -154,7 +154,7 @@ void TransitionImageLayout(VkImage& image, VkCommandBuffer& commandBuffer, VkIma
 	);
 }
 
-void CreateVÍImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
+void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
 	vkImage_t* vkImg = &g_vkImages[image->index];
 	Com_Memset(vkImg, 0, sizeof(vkImage_t));
 
@@ -275,7 +275,7 @@ void VKDrv_CreateImage(const image_t* image, const byte* pic, qboolean isLightma
 		mipLevels = static_cast<int>( 
 			std::floor(std::log2(max(image->width, image->height)))) + 1;
 	}
-	CreateVÍImage(image, mipLevels, pic, isLightmap);
+	CreateVkImage(image, mipLevels, pic, isLightmap);
 }
 
 void VKDrv_DeleteImage(const image_t* image)
