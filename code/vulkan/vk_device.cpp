@@ -17,6 +17,7 @@ uint32_t							g_vkPresenterFamilyIndex		= 0;
 VkSwapchainKHR						g_vkSwapchain					{};
 VkFence								g_vkSwapchainFence				= VK_NULL_HANDLE;
 uint32_t							g_vkSwapchainImageCount			= 2; // Double buffering
+uint32_t							g_vkCurrentSwapchainImageIndex	= UINT32_MAX;
 std::vector<VkImage>				g_vkSwapchainImages				{};
 std::vector<VkImageView>			g_vkSwapchainImageViews			{};
 // Surface-specific
@@ -29,7 +30,7 @@ VkSemaphore							g_vkSemaphore					= VK_NULL_HANDLE;
 VkCommandPool						g_vkCommandPool					= VK_NULL_HANDLE;
 // Commands & Queries
 VkQueryPool							g_vkQueryPool					= VK_NULL_HANDLE;
-VkCommandBuffer						g_vkCmdBuffer					= VK_NULL_HANDLE;
+std::vector<VkCommandBuffer>		g_vkCommandBuffers				{};
 VkQueue								g_vkQueue						= VK_NULL_HANDLE;
 VkPipeline							g_vkPipeline					= VK_NULL_HANDLE;
 VkRenderPass						g_vkRenderPass					= VK_NULL_HANDLE;
@@ -213,18 +214,23 @@ void VkDestroyCommandPool() {
 	vkDestroyCommandPool(g_vkDevice, g_vkCommandPool, nullptr);
 }
 
-void VkCreateCommandBuffer() {
+void VkCreateCommandBuffers() {
 	VkCommandBufferAllocateInfo cbAllocateInfo{};
 	cbAllocateInfo.sType				= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	cbAllocateInfo.commandPool			= g_vkCommandPool;
 	cbAllocateInfo.commandBufferCount	= 1;
 	cbAllocateInfo.level				= VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-	VkCheckError(vkAllocateCommandBuffers(g_vkDevice, &cbAllocateInfo, &g_vkCmdBuffer));
+	g_vkCommandBuffers.resize(g_vkSwapchainImageCount);
+	for (size_t i = 0;  i < g_vkCommandBuffers.size(); ++i) {
+		VkCheckError(vkAllocateCommandBuffers(g_vkDevice, &cbAllocateInfo, &g_vkCommandBuffers[i]));
+	}
 }
 
 void VkDestroyCommandBuffer() {
-	vkFreeCommandBuffers(g_vkDevice, g_vkCommandPool, 1, &g_vkCmdBuffer);
+	for(auto buffer : g_vkCommandBuffers){
+		vkFreeCommandBuffers(g_vkDevice, g_vkCommandPool, 1, &buffer);
+	}
 }
 
 
@@ -297,13 +303,12 @@ void VkDestroyDevice()
 	g_vkDevice = nullptr;
 }
 
-
 void VkCreateSwapChain() {
 
 	if (g_vkSwapchainImageCount > g_vkSurfaceCapabilites.maxImageCount) 
 		g_vkSwapchainImageCount = g_vkSurfaceCapabilites.maxImageCount;
-	if (g_vkSwapchainImageCount < g_vkSurfaceCapabilites.minImageCount + 1)
-		g_vkSwapchainImageCount = g_vkSurfaceCapabilites.minImageCount + 1;
+	if (g_vkSwapchainImageCount < g_vkSurfaceCapabilites.minImageCount)
+		g_vkSwapchainImageCount = g_vkSurfaceCapabilites.minImageCount;
 
 	VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
 	{
@@ -363,6 +368,7 @@ void VkCreateSwapChain() {
 
 		VkCheckError(vkCreateImageView(g_vkDevice, &createInfo, nullptr, &g_vkSwapchainImageViews[i]));
 	}
+	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
 }
 void VkDestroySwapChain() {
 	for (auto iv : g_vkSwapchainImageViews) {
@@ -589,17 +595,18 @@ void VkCreateInstance()
 	instanceCreateInfo.pNext					= &debugReportCreateCallbackInfo;
 
 	VkCheckError(vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance));
-	
+
 	CreateVkDebugCallback();
 
 	VkCreateDevice();
+
+	CreateSyncPrimitives();
+
 	VkCreateSurface();
 
 	VkCreateSwapChain();
 
 	VkCreateDepthStencilImage();
-
-	CreateSyncPrimitives();
 
 	// Create Query Pool
 	VkCreateQueryPool();
@@ -608,7 +615,7 @@ void VkCreateInstance()
 	VkCreateCommandPool();
 
 	// Create Command Buffer
-	VkCreateCommandBuffer();
+	VkCreateCommandBuffers();
 
 	VkCreateRenderPass();
 
@@ -622,10 +629,10 @@ void VkDestroyInstance()
 	VkDestroyCommandBuffer();
 	VkDestroyCommandPool();
 	VkDestroyQueryPool();
-	VkDestroySyncPrimitives();
 	VkDestroyDepthStencilImage();
 	VkDestroySwapChain();
 	VkDestroySurface();
+	VkDestroySyncPrimitives();
 	VkDestroyDevice();
 	DestroyVkDebugCallback();
 

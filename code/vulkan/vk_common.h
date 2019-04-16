@@ -19,5 +19,5 @@ uint32_t FindMemoryTypeIndex(VkPhysicalDeviceMemoryProperties* properties,
 
 void VkCopyBuffer(VkCommandBuffer& commandBuffer, VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize size);
 void VkCopyBufferToImage(VkCommandBuffer& commandBuffer, VkBuffer& buffer, VkImage& image, uint32_t width, uint32_t height);
-
+uint32_t AcquireNextSwapchainImage(VkDevice& device, VkSwapchainKHR& swapchain, VkFence& fence);
 #endif

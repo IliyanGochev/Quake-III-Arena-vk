@@ -139,3 +139,14 @@ void VkCopyBufferToImage(VkCommandBuffer& commandBuffer, VkBuffer& buffer, VkIma
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);	
 }
+
+uint32_t AcquireNextSwapchainImage(VkDevice &device, VkSwapchainKHR &swapchain, VkFence& fence ) {
+	uint32_t currentSwapchainImageIndex;
+
+	VkCheckError(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX,
+								VK_NULL_HANDLE, fence, &currentSwapchainImageIndex));
+	VkCheckError(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+	VkCheckError(vkResetFences(device, 1, &fence));
+
+	return  currentSwapchainImageIndex;
+}
