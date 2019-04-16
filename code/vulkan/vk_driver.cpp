@@ -154,6 +154,17 @@ void TransitionImageLayout(VkImage& image, VkCommandBuffer& commandBuffer, VkIma
 	);
 }
 
+VkCommandBuffer g_vkImagesCommandBuffer = VK_NULL_HANDLE;
+void InitializeImageCommandBuffer() {
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType					= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandBufferCount	= 1;
+	allocInfo.commandPool			= g_vkCommandPool;
+	allocInfo.level					= VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	VkCheckError(vkAllocateCommandBuffers(g_vkDevice, &allocInfo, &g_vkImagesCommandBuffer));
+}
+
 void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
 	vkImage_t* vkImg = &g_vkImages[image->index];
 	Com_Memset(vkImg, 0, sizeof(vkImage_t));
@@ -242,22 +253,24 @@ void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 	// Copy the data from staging to image
 	
 	{
+		if (g_vkImagesCommandBuffer == VK_NULL_HANDLE)
+			InitializeImageCommandBuffer();
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-		VkCheckError(vkBeginCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo));
+		VkCheckError(vkBeginCommandBuffer(g_vkImagesCommandBuffer, &beginInfo));
 
-		TransitionImageLayout(vkImg->textureImage, g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		VkCopyBufferToImage(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], stagingBuffer, vkImg->textureImage, vkImg->width, vkImg->height);
-		TransitionImageLayout(vkImg->textureImage, g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		TransitionImageLayout(vkImg->textureImage, g_vkImagesCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		VkCopyBufferToImage(g_vkImagesCommandBuffer, stagingBuffer, vkImg->textureImage, vkImg->width, vkImg->height);
+		TransitionImageLayout(vkImg->textureImage, g_vkImagesCommandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		
-		VkCheckError(vkEndCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex]));
+		VkCheckError(vkEndCommandBuffer(g_vkImagesCommandBuffer));
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType				= VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount	= 1;
-		submitInfo.pCommandBuffers		= &g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex];
+		submitInfo.pCommandBuffers		= &g_vkImagesCommandBuffer;
 
 		VkCheckError(vkQueueSubmit(g_vkQueue, 1, &submitInfo, VK_NULL_HANDLE));
 		vkQueueWaitIdle(g_vkQueue);
@@ -398,11 +411,12 @@ void VKDrv_SetDepthRange(float minRange, float maxRange)
 void VKDrv_SetDrawBuffer(int buffer)
 {
 	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
-
+	Com_Printf("[VK_DRV]: SetDrawBuffer\n");
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		
 		VkCheckError( vkBeginCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo));
 	}
 	{
