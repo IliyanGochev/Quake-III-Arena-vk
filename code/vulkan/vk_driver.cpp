@@ -347,9 +347,27 @@ void VKDrv_SetModelView(const float* modelViewMatrix)
 void VKDrv_GetModelView(float* modelViewMatrix)
 {
 }
-
+bool isRenderingReady = false;
 void VKDrv_SetViewport(int left, int top, int width, int height)
 {
+	if(isRenderingReady) {
+		VkViewport viewport;
+		viewport.x = left;
+		viewport.y = top;
+		viewport.width = width;
+		viewport.height = height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		
+		VkRect2D scissor;
+		scissor.offset.x = left;
+		scissor.offset.y = top;
+		scissor.extent.width = width;
+		scissor.extent.height = height;
+
+		vkCmdSetViewport(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], 0, 1, &viewport);
+		vkCmdSetScissor(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], 0, 1, &scissor);
+	}
 }
 
 void VKDrv_Flush()
@@ -376,12 +394,77 @@ void VKDrv_SetDepthRange(float minRange, float maxRange)
 {
 }
 
+// (Iliyan): Used for frame initialization
 void VKDrv_SetDrawBuffer(int buffer)
 {
+	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
+
+	{
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		VkCheckError( vkBeginCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo));
+	}
+	{
+		VkRect2D renderArea{};
+		renderArea.offset.x = 0;
+		renderArea.offset.y = 0;
+		renderArea.extent = g_vkSurfaceCapabilites.currentExtent;
+
+		VkClearValue clearValues[2];
+		clearValues[0].depthStencil.depth = 0.0f;
+		clearValues[0].depthStencil.stencil = 0;
+
+		//(Iliyan): Note!: Based on the hard-coded surface format!
+		clearValues[1].color.float32[0] =
+		clearValues[1].color.float32[1] =
+		clearValues[1].color.float32[2] =
+		clearValues[1].color.float32[3] = 0.0f;
+
+		VkRenderPassBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		beginInfo.renderPass = g_vkRenderPass;
+		beginInfo.framebuffer = g_vkFramebuffers[g_vkCurrentSwapchainImageIndex];
+		beginInfo.renderArea = renderArea;
+		beginInfo.clearValueCount = 2;
+		beginInfo.pClearValues = clearValues;
+
+		vkCmdBeginRenderPass(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	}
+	isRenderingReady = true;
 }
 
 void VKDrv_EndFrame()
 {
+	vkCmdEndRenderPass(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex]);
+	VkCheckError(vkEndCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex]));
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex];
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &g_vkSemaphore;
+
+	VkCheckError(vkQueueSubmit(g_vkQueue, 1, &submitInfo, VK_NULL_HANDLE));
+
+	VkResult result;
+
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType			= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.swapchainCount	= 1;
+	presentInfo.pSwapchains		= &g_vkSwapchain;
+	presentInfo.pImageIndices	= &g_vkCurrentSwapchainImageIndex;
+	presentInfo.pResults		= &result;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &g_vkSemaphore;
+
+	VkCheckError(vkQueuePresentKHR(g_vkQueue, &presentInfo));
+	VkCheckError(result);
+	isRenderingReady = false;
 }
 
 void VKDrv_MakeCurrent(qboolean current)

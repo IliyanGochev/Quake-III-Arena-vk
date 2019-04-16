@@ -368,7 +368,7 @@ void VkCreateSwapChain() {
 
 		VkCheckError(vkCreateImageView(g_vkDevice, &createInfo, nullptr, &g_vkSwapchainImageViews[i]));
 	}
-	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
+	g_vkCurrentSwapchainImageIndex = 0; //AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
 }
 void VkDestroySwapChain() {
 	for (auto iv : g_vkSwapchainImageViews) {
@@ -624,6 +624,8 @@ void VkCreateInstance()
 
 void VkDestroyInstance()
 {
+	vkQueueWaitIdle(g_vkQueue);
+
 	VkDestroyFramebuffers();
 	VkDestroyRenderPas();
 	VkDestroyCommandBuffer();
