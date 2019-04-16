@@ -62,6 +62,7 @@ void PROXY_Shutdown( void )
 {
     d3dDriver.Shutdown();
     glDriver.Shutdown();
+	Com_Printf("[PROXY] Shutdown\n");
 }
 
 // Why? If the D3D driver fails, we can't call regular Shutdown because glDriver will still be null
@@ -69,16 +70,19 @@ void PROXY_ShutdownOne( void )
 {
     d3dDriver.Shutdown();
     glDriver.Shutdown();
+	Com_Printf("[PROXY] ShutdownOne\n");
 }
 
 void PROXY_UnbindResources( void )
 {
     d3dDriver.UnbindResources();
     glDriver.UnbindResources();
+	Com_Printf("[PROXY] UnbindResources\n");
 }
 
 size_t PROXY_LastError( void )
 {
+	Com_Printf("[PROXY] LastError\n");
     size_t glError = glDriver.LastError();
     size_t d3dError = d3dDriver.LastError();
 
@@ -95,6 +99,8 @@ void PROXY_ReadPixels( int x, int y, int width, int height, imageFormat_t reques
         d3dDriver.ReadPixels( x, y, width, height, requestedFmt, dest );
     else
         glDriver.ReadPixels( x, y, width, height, requestedFmt, dest );
+
+	Com_Printf("[PROXY] ReadPixels\n");
 }
 
 void PROXY_ReadDepth( int x, int y, int width, int height, float* dest )
@@ -103,6 +109,8 @@ void PROXY_ReadDepth( int x, int y, int width, int height, float* dest )
         d3dDriver.ReadDepth( x, y, width, height, dest );
     else
         glDriver.ReadDepth( x, y, width, height, dest );
+
+	Com_Printf("[PROXY] ReadDepth\n");
 }
 
 void PROXY_ReadStencil( int x, int y, int width, int height, byte* dest )
@@ -111,30 +119,36 @@ void PROXY_ReadStencil( int x, int y, int width, int height, byte* dest )
         d3dDriver.ReadStencil( x, y, width, height, dest );
     else
         glDriver.ReadStencil( x, y, width, height, dest );
+
+	Com_Printf("[PROXY] ReadStencil\n");
 }
 
 void PROXY_CreateImage( const image_t* image, const byte *pic, qboolean isLightmap )
 {
     d3dDriver.CreateImage( image, pic, isLightmap );
     glDriver.CreateImage( image, pic, isLightmap );
+	Com_Printf("[PROXY] CreateImage\n");
 }
 
 void PROXY_DeleteImage( const image_t* image )
 {
     d3dDriver.DeleteImage( image );
     glDriver.DeleteImage( image );
+	Com_Printf("[PROXY] DeleteImage\n");
 }
 
 void PROXY_UpdateCinematic( const image_t* image, const byte* pic, int cols, int rows, qboolean dirty )
 {
     d3dDriver.UpdateCinematic( image, pic, cols, rows, dirty );
     glDriver.UpdateCinematic( image, pic, cols, rows, dirty );
+	Com_Printf("[PROXY] UpdateCinematic\n");
 }
 
 void PROXY_DrawImage( const image_t* image, const float* coords, const float* texcoords, const float* color )
 {
     d3dDriver.DrawImage( image, coords, texcoords, color );
     glDriver.DrawImage( image, coords, texcoords, color );
+	Com_Printf("[PROXY] DrawImage\n");
 }
 
 imageFormat_t PROXY_GetImageFormat( const image_t* image )
@@ -145,7 +159,7 @@ imageFormat_t PROXY_GetImageFormat( const image_t* image )
     // @pjb: todo: enable this when relevant
     //assert( d3dFmt == glFmt );
     //return d3dFmt;
-
+	Com_Printf("[PROXY] GetImageFormat\n");
     return glFmt;
 }
 
@@ -153,10 +167,12 @@ void PROXY_SetGamma( unsigned char red[256], unsigned char green[256], unsigned 
 {
     d3dDriver.SetGamma( red, green, blue );
     glDriver.SetGamma( red, green, blue );
+	Com_Printf("[PROXY] SetGamma\n");
 }
 
 int PROXY_SumOfUsedImages( void )
 {
+	Com_Printf("[PROXY] SumOfUsedImages\n");
     return d3dDriver.GetFrameImageMemoryUsage() + glDriver.GetFrameImageMemoryUsage(); 
 }
 
@@ -167,18 +183,22 @@ void PROXY_GfxInfo( void )
     // @pjb: todo
 	ri.Printf( PRINT_ALL, "----- PROXY -----\n" );
     ri.Printf( PRINT_ALL, "Using proxied driver: all commands issued to OpenGL and D3D11.\n" );
+	
+	Com_Printf("[PROXY] GfxInfo\n");
 }
 
 void PROXY_Clear( unsigned long bits, const float* clearCol, unsigned long stencil, float depth )
 {
     d3dDriver.Clear( bits, clearCol, stencil, depth );
     glDriver.Clear( bits, clearCol, stencil, depth );
+	Com_Printf("[PROXY] Clear\n");
 }
 
 void PROXY_SetProjection( const float* projMatrix )
 {
     d3dDriver.SetProjectionMatrix( projMatrix );
     glDriver.SetProjectionMatrix( projMatrix );
+	Com_Printf("[PROXY] SetProjection\n");
 }
 
 void PROXY_GetProjection( float* projMatrix )
@@ -187,12 +207,15 @@ void PROXY_GetProjection( float* projMatrix )
         d3dDriver.GetProjectionMatrix( projMatrix );
     else
         glDriver.GetProjectionMatrix( projMatrix );
+
+	Com_Printf("[PROXY] GetProjection\n");
 }
 
 void PROXY_SetModelView( const float* modelViewMatrix )
 {
     d3dDriver.SetModelViewMatrix( modelViewMatrix );
     glDriver.SetModelViewMatrix( modelViewMatrix );
+	Com_Printf("[PROXY] SetModelView\n");
 }
 
 void PROXY_GetModelView( float* modelViewMatrix )
@@ -201,144 +224,169 @@ void PROXY_GetModelView( float* modelViewMatrix )
         d3dDriver.GetModelViewMatrix( modelViewMatrix );
     else
         glDriver.GetModelViewMatrix( modelViewMatrix );
+
+	Com_Printf("[PROXY] GetModelView\n");
 }
 
 void PROXY_SetViewport( int left, int top, int width, int height )
 {
     d3dDriver.SetViewport( left, top, width, height );
     glDriver.SetViewport( left, top, width, height );
+	Com_Printf("[PROXY] SetViewport\n");
 }
 
 void PROXY_Flush( void )
 {
     d3dDriver.Flush();
     glDriver.Flush();
+	Com_Printf("[PROXY] Flush\n");
 }
 
 void PROXY_SetState( unsigned long stateMask )
 {
     d3dDriver.SetState( stateMask );
     glDriver.SetState( stateMask );
+	Com_Printf("[PROXY] SetState\n");
 }
 
 void PROXY_ResetState2D( void )
 {
     d3dDriver.ResetState2D();
     glDriver.ResetState2D();
+	Com_Printf("[PROXY] ResetState2D\n");
 }
 
 void PROXY_ResetState3D( void )
 {
     d3dDriver.ResetState3D();
     glDriver.ResetState3D();
+	Com_Printf("[PROXY] ResetState3D\n");
 }
 
 void PROXY_SetPortalRendering( qboolean enabled, const float* flipMatrix, const float* plane )
 {
     d3dDriver.SetPortalRendering( enabled, flipMatrix, plane );
     glDriver.SetPortalRendering( enabled, flipMatrix, plane );
+	Com_Printf("[PROXY] SetPortalRendering\n");
 }
 
 void PROXY_SetDepthRange( float minRange, float maxRange )
 {
     d3dDriver.SetDepthRange( minRange, maxRange );
     glDriver.SetDepthRange( minRange, maxRange );
+	Com_Printf("[PROXY] SetDepthRange\n");
 }
 
 void PROXY_SetDrawBuffer( int buffer )
 {
     d3dDriver.SetDrawBuffer( buffer );
     glDriver.SetDrawBuffer( buffer );
+	Com_Printf("[PROXY] SetDrawBuffer\n");
 }
 
 void PROXY_EndFrame( void )
 {
     d3dDriver.EndFrame();
     glDriver.EndFrame();
+	Com_Printf("[PROXY] EndFrame\n");
 }
 
 void PROXY_MakeCurrent( qboolean current )
 {
     d3dDriver.MakeCurrent( current );
     glDriver.MakeCurrent( current );
+	Com_Printf("[PROXY] MakeCurrent\n");
 }
 
 void PROXY_ShadowSilhouette( const float* edges, int edgeCount )
 {
     d3dDriver.ShadowSilhouette( edges, edgeCount );
     glDriver.ShadowSilhouette( edges, edgeCount );
+	Com_Printf("[PROXY] ShadowSilhouette\n");
 }
 
 void PROXY_ShadowFinish( void )
 {
     d3dDriver.ShadowFinish();
     glDriver.ShadowFinish();
+	Com_Printf("[PROXY] ShadowFinish\n");
 }
 
 void PROXY_DrawSkyBox( const skyboxDrawInfo_t* skybox, const float* eye_origin, const float* colorTint )
 {
     d3dDriver.DrawSkyBox( skybox, eye_origin, colorTint );
     glDriver.DrawSkyBox( skybox, eye_origin, colorTint );
+	Com_Printf("[PROXY] DrawSkyBox\n");
 }
 
 void PROXY_DrawBeam( const image_t* image, const float* color, const vec3_t startPoints[], const vec3_t endPoints[], int segs )
 {
     d3dDriver.DrawBeam( image, color, startPoints, endPoints, segs );
     glDriver.DrawBeam( image, color, startPoints, endPoints, segs );
+	Com_Printf("[PROXY] DrawBeam\n");
 }
 
 void PROXY_DrawStageGeneric( const shaderCommands_t *input )
 {
     d3dDriver.DrawStageGeneric( input );
     glDriver.DrawStageGeneric( input );
+	Com_Printf("[PROXY] DrawStageGeneric\n");
 }
 
 void PROXY_DrawStageVertexLitTexture( const shaderCommands_t *input )
 {
     d3dDriver.DrawStageVertexLitTexture( input );
     glDriver.DrawStageVertexLitTexture( input );
+	Com_Printf("[PROXY] DrawStageVertexLitTexture\n");
 }
 
 void PROXY_DrawStageLightmappedMultitexture( const shaderCommands_t *input )
 {
     d3dDriver.DrawStageLightmappedMultitexture( input );
     glDriver.DrawStageLightmappedMultitexture( input );
+	Com_Printf("[PROXY] DrawStageLightmappedMultitexture\n");
 }
 
 void PROXY_DebugDrawAxis( void )
 {
     d3dDriver.DebugDrawAxis();
     glDriver.DebugDrawAxis();
+	Com_Printf("[PROXY] DebugDrawAxis\n");
 }
 
 void PROXY_DebugDrawTris( const shaderCommands_t *input )
 {
     d3dDriver.DebugDrawTris( input );
     glDriver.DebugDrawTris( input );
+	Com_Printf("[PROXY] DebugDrawTris\n");
 }
 
 void PROXY_DebugDrawNormals( const shaderCommands_t *input )
 {
     d3dDriver.DebugDrawNormals( input );
     glDriver.DebugDrawNormals( input );
+	Com_Printf("[PROXY] DebugDrawNormals\n");
 }
 
 void PROXY_DebugSetOverdrawMeasureEnabled( qboolean enabled )
 {
     d3dDriver.DebugSetOverdrawMeasureEnabled( enabled );
     glDriver.DebugSetOverdrawMeasureEnabled( enabled );
+	Com_Printf("[PROXY] DebugSetOverdrawMeasureEnabled\n");
 }
 
 void PROXY_DebugSetTextureMode( const char* mode )
 {
     d3dDriver.DebugSetTextureMode( mode );
     glDriver.DebugSetTextureMode( mode );
+	Com_Printf("[PROXY] DebugSetTextureMode\n");
 }
 
 void PROXY_DebugDrawPolygon( int color, int numPoints, const float* points )
 {
     d3dDriver.DebugDrawPolygon( color, numPoints, points );
     glDriver.DebugDrawPolygon( color, numPoints, points );
+	Com_Printf("[PROXY] DebugDrawPolygon\n");
 }
 
 static void PositionOpenGLWindowRightOfD3D( void )
@@ -564,6 +612,8 @@ void PROXY_DriverInit( void )
     // Restore the old config and reconcile the new configs
     vdConfig = old_vdConfig;
     ReconcileVideoConfigs( &d3d_vdConfig, &gl_vdConfig, &vdConfig );
+
+	Com_Printf("[Proxy] DriverInit\n");
 }
 
 
