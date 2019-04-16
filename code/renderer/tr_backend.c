@@ -412,7 +412,7 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 	R_SyncRenderThread();
 
 	// we definately want to sync every frame for the cinematics
-	GFX_Flush();
+	//(Iliyan): Not quite sure if we really need this flush GFX_Flush();
 
 	start = end = 0;
 	if ( r_speeds->integer ) {
