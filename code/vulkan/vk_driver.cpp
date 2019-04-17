@@ -216,7 +216,7 @@ void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 
 		void* data;
 		VkCheckError(vkMapMemory(g_vkDevice, stagingBufferMemory, 0, imageDeviceSize, 0, &data));
-		memcpy(data, pic, static_cast<size_t> (imageDeviceSize));
+		memcpy(data, lightscaledCopy, static_cast<size_t> (imageDeviceSize));
 		vkUnmapMemory(g_vkDevice, stagingBufferMemory);
 	}
 	// Create the image
