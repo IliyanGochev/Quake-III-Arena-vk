@@ -15,7 +15,6 @@ uint32_t							g_vkGraphicsFamilyIndex			= 0;
 uint32_t							g_vkPresenterFamilyIndex		= 0;
 // Swapchain-specific
 VkSwapchainKHR						g_vkSwapchain					{};
-VkFence								g_vkSwapchainFence				= VK_NULL_HANDLE;
 uint32_t							g_vkSwapchainImageCount			= 2; // Double buffering
 uint32_t							g_vkCurrentSwapchainImageIndex	= UINT32_MAX;
 std::vector<VkImage>				g_vkSwapchainImages				{};
@@ -26,7 +25,9 @@ VkSurfaceCapabilitiesKHR			g_vkSurfaceCapabilites			{};
 VkSurfaceFormatKHR					g_vkSurfaceFormat				{};
 
 // Sync-primitives
-VkSemaphore							g_vkSemaphore					= VK_NULL_HANDLE;
+std::vector<VkSemaphore>			g_vkImageAvailableSemaphores	{};
+std::vector<VkSemaphore>			g_vkRenderFinishedSemaphores	{};
+std::vector<VkFence>				g_vkFencesInFlight				{};
 VkCommandPool						g_vkCommandPool					= VK_NULL_HANDLE;
 // Commands & Queries
 VkQueryPool							g_vkQueryPool					= VK_NULL_HANDLE;
@@ -378,21 +379,29 @@ void VkDestroySwapChain() {
 }
 
 void CreateSyncPrimitives() {
-	{
-		VkFenceCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		VkCheckError(vkCreateFence(g_vkDevice, &createInfo, nullptr, &g_vkSwapchainFence));
-	}
-	{
-		VkSemaphoreCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		VkCheckError(vkCreateSemaphore(g_vkDevice, &createInfo, nullptr, &g_vkSemaphore));
-	}
+	VkSemaphoreCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo createFenceInfo{};
+	createFenceInfo.sType	= VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;	
+	createFenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	g_vkImageAvailableSemaphores.resize(g_vkSwapchainImageCount);
+	g_vkRenderFinishedSemaphores.resize(g_vkSwapchainImageCount);
+	g_vkFencesInFlight.resize(g_vkSwapchainImageCount);
+	for(size_t i = 0; i < g_vkImageAvailableSemaphores.size(); ++i) {
+		VkCheckError(vkCreateSemaphore(g_vkDevice, &createInfo, nullptr, &g_vkImageAvailableSemaphores[i]));
+		VkCheckError(vkCreateSemaphore(g_vkDevice, &createInfo, nullptr, &g_vkRenderFinishedSemaphores[i]));
+		VkCheckError(vkCreateFence(g_vkDevice, &createFenceInfo, nullptr, &g_vkFencesInFlight[i]));		
+	}	
 }
 
 void VkDestroySyncPrimitives() {
-	vkDestroySemaphore(g_vkDevice, g_vkSemaphore, nullptr);
-	vkDestroyFence(g_vkDevice, g_vkSwapchainFence, nullptr);
+	for(size_t i = 0; i < g_vkImageAvailableSemaphores.size(); ++i) {
+		vkDestroySemaphore(g_vkDevice, g_vkImageAvailableSemaphores[i], nullptr);
+		vkDestroySemaphore(g_vkDevice, g_vkRenderFinishedSemaphores[i], nullptr);
+		vkDestroyFence(g_vkDevice, g_vkFencesInFlight[i], nullptr);
+	}		
 }
 
 void VkCreateRenderPass() {

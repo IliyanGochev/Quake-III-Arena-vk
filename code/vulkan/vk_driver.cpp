@@ -407,17 +407,21 @@ void VKDrv_SetDepthRange(float minRange, float maxRange)
 {
 }
 
+uint32_t currentFrame = 0;
 // (Iliyan): Used for frame initialization
 void VKDrv_SetDrawBuffer(int buffer)
 {
-	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkSwapchainFence);
+	VkCheckError( vkWaitForFences(g_vkDevice, 1, &g_vkFencesInFlight[currentFrame], VK_TRUE, UINT64_MAX));
+	VkCheckError(vkResetFences(g_vkDevice, 1, &g_vkFencesInFlight[currentFrame]));
+
+	g_vkCurrentSwapchainImageIndex = AcquireNextSwapchainImage(g_vkDevice, g_vkSwapchain, g_vkImageAvailableSemaphores[currentFrame]);
 	Com_Printf("[VK_DRV]: SetDrawBuffer\n");
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		
-		VkCheckError( vkBeginCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo));
+		VkCheckError( vkBeginCommandBuffer(g_vkCommandBuffers[currentFrame], &beginInfo));
 	}
 	{
 		VkRect2D renderArea{};
@@ -438,32 +442,33 @@ void VKDrv_SetDrawBuffer(int buffer)
 		VkRenderPassBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		beginInfo.renderPass = g_vkRenderPass;
-		beginInfo.framebuffer = g_vkFramebuffers[g_vkCurrentSwapchainImageIndex];
+		beginInfo.framebuffer = g_vkFramebuffers[currentFrame];
 		beginInfo.renderArea = renderArea;
 		beginInfo.clearValueCount = 2;
 		beginInfo.pClearValues = clearValues;
 
-		vkCmdBeginRenderPass(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(g_vkCommandBuffers[currentFrame], &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	}
 	isRenderingReady = true;
 }
 
 void VKDrv_EndFrame()
 {
-	vkCmdEndRenderPass(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex]);
-	VkCheckError(vkEndCommandBuffer(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex]));
+	vkCmdEndRenderPass(g_vkCommandBuffers[currentFrame]);
+	VkCheckError(vkEndCommandBuffer(g_vkCommandBuffers[currentFrame]));
 
 	VkSubmitInfo submitInfo{};
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.waitSemaphoreCount = 0;
-	submitInfo.pWaitSemaphores = nullptr;
-	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &g_vkImageAvailableSemaphores[currentFrame];
+	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex];
+	submitInfo.pCommandBuffers = &g_vkCommandBuffers[currentFrame];
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &g_vkSemaphore;
-
-	VkCheckError(vkQueueSubmit(g_vkQueue, 1, &submitInfo, VK_NULL_HANDLE));
+	submitInfo.pSignalSemaphores = &g_vkRenderFinishedSemaphores[currentFrame];
+	
+	VkCheckError(vkQueueSubmit(g_vkQueue, 1, &submitInfo, g_vkFencesInFlight[currentFrame]));
 
 	VkResult result;
 
@@ -471,13 +476,15 @@ void VKDrv_EndFrame()
 	presentInfo.sType			= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.swapchainCount	= 1;
 	presentInfo.pSwapchains		= &g_vkSwapchain;
-	presentInfo.pImageIndices	= &g_vkCurrentSwapchainImageIndex;
+	presentInfo.pImageIndices	= &currentFrame;
 	presentInfo.pResults		= &result;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &g_vkSemaphore;
+	presentInfo.pWaitSemaphores = &g_vkRenderFinishedSemaphores[currentFrame];
 
 	VkCheckError(vkQueuePresentKHR(g_vkQueue, &presentInfo));
 	VkCheckError(result);
+
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	isRenderingReady = false;
 }
 
