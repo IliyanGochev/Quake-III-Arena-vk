@@ -4,6 +4,9 @@
 #include "../win32/win_vulkan.h"
 
 #include <cmath>
+
+#define FENCE_TIMEOUT 100000000  // 0.1 sec
+
 struct vkImage_t {
 	VkImage textureImage;
 	VkImageView textureImageView;
@@ -477,9 +480,14 @@ void VKDrv_EndFrame()
 	presentInfo.swapchainCount	= 1;
 	presentInfo.pSwapchains		= &g_vkSwapchain;
 	presentInfo.pImageIndices	= &currentFrame;
-	presentInfo.pResults		= &result;
+	presentInfo.pResults		= nullptr;
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = &g_vkRenderFinishedSemaphores[currentFrame];
+	
+	do {
+		result = vkWaitForFences(g_vkDevice, 1, &g_vkFencesInFlight[currentFrame], VK_TRUE, FENCE_TIMEOUT);
+	} while (result == VK_TIMEOUT);
+	
 
 	VkCheckError(vkQueuePresentKHR(g_vkQueue, &presentInfo));
 	VkCheckError(result);
