@@ -156,8 +156,7 @@ void EnableExtensionLayers() {
 
 void SetupDebugLayers()
 {
-	instanceEnabledLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-	deviceEnabledLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+	instanceEnabledLayers.push_back("VK_LAYER_KHRONOS_validation");	
 
 	debugReportCreateCallbackInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	debugReportCreateCallbackInfo.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
@@ -288,8 +287,8 @@ void VkCreateDevice()
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
-	deviceCreateInfo.enabledLayerCount = deviceEnabledLayers.size();
-	deviceCreateInfo.ppEnabledLayerNames = deviceEnabledLayers.data();
+	deviceCreateInfo.enabledLayerCount = 0;
+	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 	deviceCreateInfo.enabledExtensionCount = deviceEnabledExtensionLayers.size();
 	deviceCreateInfo.ppEnabledExtensionNames = deviceEnabledExtensionLayers.data();
 
