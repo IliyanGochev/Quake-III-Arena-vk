@@ -1,6 +1,6 @@
 # Quake 3: Arena (Vulkan port) #
 
-Based on the wokr of http://twitter.com/PJayB, that can be found at 
+Based on the wokr of http://twitter.com/PJayB, that can be found at [his GitHub repo](https://github.com/PJayB/Quake-III-Arena-D3D11)
 
 
 ## About the Port ##
