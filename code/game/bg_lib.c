@@ -288,6 +288,8 @@ int toupper( int c ) {
 #endif
 //#ifndef _MSC_VER
 
+#define _M_X64 // TODO(iliyan): Why is this needed for release?
+
 #ifndef _M_X64
 void *memmove( void *dest, const void *src, size_t count ) {
 	int		i;
@@ -304,6 +306,7 @@ void *memmove( void *dest, const void *src, size_t count ) {
 	return dest;
 }
 #endif
+#undef _M_X64
 
 #if 0
 
