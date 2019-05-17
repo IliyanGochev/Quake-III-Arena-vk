@@ -15,3 +15,4 @@ extern VkSurfaceCapabilitiesKHR				g_vkSurfaceCapabilites;
 extern std::vector<VkSemaphore>				g_vkImageAvailableSemaphores;
 extern std::vector<VkSemaphore>				g_vkRenderFinishedSemaphores;
 extern std::vector<VkFence>					g_vkFencesInFlight;
+extern std::vector<VkImage>					g_vkSwapchainImages;
