@@ -168,20 +168,20 @@ void InitializeImageCommandBuffer() {
 	VkCheckError(vkAllocateCommandBuffers(g_vkDevice, &allocInfo, &g_vkImagesCommandBuffer));
 }
 
-void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolean isLightmap) {
+void CreateVkImage(const image_t* image, int width, int height, int mipLevels, const byte* pic, qboolean isLightmap) {
 	vkImage_t* vkImg = &g_vkImages[image->index];
 	Com_Memset(vkImg, 0, sizeof(vkImage_t));
 
 	// We are defaulting to RGBA8 images for now
-	vkImg->width	= image->width;
-	vkImg->height	= image->height;
+	vkImg->width	= width;
+	vkImg->height	= height;
 	vkImg->format	= VK_FORMAT_R8G8B8A8_UNORM;
 
 	if (Q_strncmp(image->imgName, "*scratch", sizeof(image->imgName))) {
 		vkImg->dynamic = qtrue;
 	}
 
-	size_t imageSizeBytes = image->width * image->height * sizeof(UINT);
+	size_t imageSizeBytes = vkImg->width * vkImg->height * sizeof(UINT);
 	void* lightscaledCopy = ri.Hunk_AllocateTempMemory((int)imageSizeBytes);
 	memcpy(lightscaledCopy, pic, imageSizeBytes);
 	R_LightScaleTexture((unsigned int*)lightscaledCopy, 
@@ -227,8 +227,8 @@ void CreateVkImage(const image_t* image, int mipLevels, const byte* pic, qboolea
 		VkImageCreateInfo createInfo{};
 		createInfo.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		createInfo.imageType		= VK_IMAGE_TYPE_2D;
-		createInfo.extent.width		= image->width;
-		createInfo.extent.height	= image->height;
+		createInfo.extent.width		= vkImg->width;
+		createInfo.extent.height	= vkImg->height;
 		createInfo.extent.depth		= 1;
 		createInfo.mipLevels		= mipLevels;
 		createInfo.arrayLayers		= 1;
@@ -291,7 +291,7 @@ void VKDrv_CreateImage(const image_t* image, const byte* pic, qboolean isLightma
 		mipLevels = static_cast<int>( 
 			std::floor(std::log2(max(image->width, image->height)))) + 1;
 	}
-	CreateVkImage(image, mipLevels, pic, isLightmap);
+	CreateVkImage(image, image->width, image->height, mipLevels, pic, isLightmap);
 }
 
 void VKDrv_DeleteImage(const image_t* image)
@@ -310,11 +310,15 @@ void VKDrv_UpdateCinematic(const image_t* image, const byte* pic, int cols, int 
 	//		VKDrv_SetProjection
 	//		VKDrv_ResetState2D ?
 	//		VKDrv_DrawImage
+	if (cols != image->width || rows != image->height) {
+		VKDrv_DeleteImage(image);
 
+		CreateVkImage(image,cols, rows, 1, pic, qfalse);
+	}
 }
 
 void VKDrv_DrawImage(const image_t* image, const float* coords, const float* texcoords, const float* color)
-{
+{	
 }
 
 imageFormat_t VKDrv_GetImageFormat(const image_t* image)
