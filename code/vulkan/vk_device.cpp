@@ -240,7 +240,7 @@ void VkCreateDevice()
 	{
 		uint32_t devicesCount = 0;
 		vkEnumeratePhysicalDevices(g_vkInstance, &devicesCount, nullptr);
-		std::pmr::vector<VkPhysicalDevice> deviceList(devicesCount);
+		std::vector<VkPhysicalDevice> deviceList(devicesCount);
 		vkEnumeratePhysicalDevices(g_vkInstance, &devicesCount, deviceList.data());
 		// TODO: Better selection of GPU
 		if (!deviceList.empty()) { g_vkPhysicaDevice = deviceList[0]; }
