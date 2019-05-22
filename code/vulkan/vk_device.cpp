@@ -449,7 +449,7 @@ void VkCreateRenderPass() {
 	attachments[0].flags			= 0;
 	attachments[0].format			= g_vkDepthStencilFormat;
 	attachments[0].samples			= VK_SAMPLE_COUNT_1_BIT;
-	attachments[0].loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachments[0].loadOp			= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[0].storeOp			= VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	attachments[0].stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[0].stencilStoreOp	= VK_ATTACHMENT_STORE_OP_STORE;
@@ -459,12 +459,12 @@ void VkCreateRenderPass() {
 	attachments[1].flags			= 0;
 	attachments[1].format			= g_vkSurfaceFormat.format;
 	attachments[1].samples			= VK_SAMPLE_COUNT_1_BIT;
-	attachments[1].loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR; // Could be don't care
+	attachments[1].loadOp			= VK_ATTACHMENT_LOAD_OP_DONT_CARE; // Could be don't care
 	attachments[1].storeOp			= VK_ATTACHMENT_STORE_OP_STORE;
 	attachments[1].stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[1].stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	attachments[1].initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
-	attachments[1].finalLayout		= VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachments[1].finalLayout		= VK_IMAGE_LAYOUT_GENERAL;
 
 	VkAttachmentReference subpassDepthAttachmentRef{};
 	subpassDepthAttachmentRef.attachment	= 0;
@@ -488,6 +488,7 @@ void VkCreateRenderPass() {
 	createInfo.pAttachments			= attachments;
 	createInfo.subpassCount			= 1;
 	createInfo.pSubpasses			= &subpass;
+	createInfo.dependencyCount		= 0;
 
 	VkCheckError( vkCreateRenderPass(g_vkDevice, &createInfo, nullptr, &g_vkRenderPass));
 }
@@ -498,21 +499,20 @@ void VkDestroyRenderPas() {
 
 void VkCreateFramebuffers() {
 	g_vkFramebuffers.resize(g_vkSwapchainImageCount);
-	for(uint32_t i = 0; i < g_vkSwapchainImageCount; ++i) {
-		VkImageView attachments[2];
+	VkImageView attachments[2];
+	attachments[0] = g_vkDepthStencilImageView;
 
-		attachments[0] = g_vkDepthStencilImageView;
+	VkFramebufferCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	createInfo.renderPass = g_vkRenderPass;
+	createInfo.attachmentCount = 2;
+	createInfo.pAttachments = attachments;
+	createInfo.width = g_vkSurfaceCapabilites.currentExtent.width;
+	createInfo.height = g_vkSurfaceCapabilites.currentExtent.height;
+	createInfo.layers = 1;
+
+	for(uint32_t i = 0; i < g_vkSwapchainImageCount; ++i) {		
 		attachments[1] = g_vkSwapchainImageViews[i];
-
-		VkFramebufferCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		createInfo.renderPass = g_vkRenderPass;
-		createInfo.attachmentCount = 2;
-		createInfo.pAttachments = attachments;
-		createInfo.width =  g_vkSurfaceCapabilites.currentExtent.width;
-		createInfo.height = g_vkSurfaceCapabilites.currentExtent.height;
-		createInfo.layers = 1;
-
 		VkCheckError(vkCreateFramebuffer(g_vkDevice, &createInfo, nullptr, &g_vkFramebuffers[i]));
 	}
 }
