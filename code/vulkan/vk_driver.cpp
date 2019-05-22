@@ -20,6 +20,8 @@ struct vkImage_t {
 };
 
 static vkImage_t g_vkImages[MAX_DRAWIMAGES];
+uint32_t currentFrame = 0;
+
 void VkSetupVideoConfig()
 {
 	// TODO: Fix me!
@@ -385,8 +387,8 @@ void VKDrv_SetViewport(int left, int top, int width, int height)
 		scissor.extent.width = width;
 		scissor.extent.height = height;
 
-		vkCmdSetViewport(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], 0, 1, &viewport);
-		vkCmdSetScissor(g_vkCommandBuffers[g_vkCurrentSwapchainImageIndex], 0, 1, &scissor);
+		vkCmdSetViewport(g_vkCommandBuffers[currentFrame], 0, 1, &viewport);
+		vkCmdSetScissor(g_vkCommandBuffers[currentFrame], 0, 1, &scissor);
 	}
 }
 
@@ -414,7 +416,7 @@ void VKDrv_SetDepthRange(float minRange, float maxRange)
 {
 }
 
-uint32_t currentFrame = 0;
+
 // (Iliyan): Used for frame initialization
 void VKDrv_SetDrawBuffer(int buffer)
 {
@@ -462,6 +464,29 @@ void VKDrv_SetDrawBuffer(int buffer)
 void VKDrv_EndFrame()
 {
 	vkCmdEndRenderPass(g_vkCommandBuffers[currentFrame]);
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = g_vkSwapchainImages[currentFrame];
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccessMask = 0;
+
+	vkCmdPipelineBarrier(
+		g_vkCommandBuffers[currentFrame],
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0, 0, nullptr,
+		0, nullptr, 1, &barrier);
+
 	VkCheckError(vkEndCommandBuffer(g_vkCommandBuffers[currentFrame]));
 
 	VkSubmitInfo submitInfo{};
@@ -492,9 +517,8 @@ void VKDrv_EndFrame()
 		result = vkWaitForFences(g_vkDevice, 1, &g_vkFencesInFlight[currentFrame], VK_TRUE, FENCE_TIMEOUT);
 	} while (result == VK_TIMEOUT);
 	
-
-	VkCheckError(vkQueuePresentKHR(g_vkQueue, &presentInfo));
 	VkCheckError(result);
+	VkCheckError(vkQueuePresentKHR(g_vkQueue, &presentInfo));
 
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	isRenderingReady = false;
