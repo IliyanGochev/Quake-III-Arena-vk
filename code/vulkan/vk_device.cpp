@@ -150,7 +150,7 @@ void EnableExtensionLayers() {
 	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 	instanceEnabledExtensionLayers.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-
+	instanceEnabledExtensionLayers.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	deviceEnabledExtensionLayers.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
@@ -172,20 +172,59 @@ PFN_vkDestroyDebugReportCallbackEXT	fvkDestroyDebugReportCallbackEXT	= nullptr;
 
 void CreateVkDebugCallback()
 {
-	fvkCreateDebugReportCallbackEXT  = (PFN_vkCreateDebugReportCallbackEXT)	vkGetInstanceProcAddr(g_vkInstance, "vkCreateDebugReportCallbackEXT"); 
+	fvkCreateDebugReportCallbackEXT  = (PFN_vkCreateDebugReportCallbackEXT) vkGetInstanceProcAddr(g_vkInstance, "vkCreateDebugReportCallbackEXT");
 	fvkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(g_vkInstance, "vkDestroyDebugReportCallbackEXT");
 	if (nullptr == fvkCreateDebugReportCallbackEXT || nullptr == fvkDestroyDebugReportCallbackEXT)
 	{
 		assert(0 && "Error obtaining ProcAddresses!");
 		exit(-1);
 	}
-	fvkCreateDebugReportCallbackEXT(g_vkInstance, &debugReportCreateCallbackInfo, nullptr, &debugPrintHandle);	
+	fvkCreateDebugReportCallbackEXT(g_vkInstance, &debugReportCreateCallbackInfo, nullptr, &debugPrintHandle);
 }
 
 void DestroyVkDebugCallback()
 {
 	fvkDestroyDebugReportCallbackEXT(g_vkInstance, debugPrintHandle, nullptr);
 	debugPrintHandle = VK_NULL_HANDLE;
+}
+
+PFN_vkCreateDebugUtilsMessengerEXT fvkCreateDebugUtilsMessengerEXT;
+PFN_vkDestroyDebugUtilsMessengerEXT fvkDestroyDebugUtilsMessengerEXT;
+VkDebugUtilsMessengerEXT			debugMessenger;
+
+VKAPI_ATTR VkBool32 VKAPI_CALL VkDebugCallback2(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+												VkDebugUtilsMessageTypeFlagsEXT messageType,
+												const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+												void* userData) {
+
+	return false;
+}
+
+void CreateVkDebugUtilsMessenger() {
+	fvkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vkInstance, "vkCreateDebugUtilsMessengerEXT");
+	fvkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vkInstance, "vkDestroyDebugUtilsMessengerEXT");
+
+	{
+		VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+		createInfo.sType			= VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.pNext			= nullptr;
+		createInfo.flags			= 0;
+		createInfo.messageSeverity	= 
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType		=
+			VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback	= VkDebugCallback2;
+		createInfo.pUserData		= nullptr;
+
+		auto result = fvkCreateDebugUtilsMessengerEXT(g_vkInstance, &createInfo, nullptr, &debugMessenger);
+	}
+}
+
+void DestroyVkDebugUtilsMessenger() {
+	fvkDestroyDebugUtilsMessengerEXT(g_vkInstance, debugMessenger, nullptr);
 }
 
 void VkCreateQueryPool() {
@@ -604,7 +643,9 @@ void VkCreateInstance()
 
 	VkCheckError(vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance));
 
-	CreateVkDebugCallback();
+//	CreateVkDebugCallback();
+
+	CreateVkDebugUtilsMessenger();
 
 	VkCreateDevice();
 
@@ -644,7 +685,9 @@ void VkDestroyInstance()
 	VkDestroySurface();
 	VkDestroySyncPrimitives();
 	VkDestroyDevice();
-	DestroyVkDebugCallback();
+
+	DestroyVkDebugUtilsMessenger();
+//	DestroyVkDebugCallback();
 
 	vkDestroyInstance(g_vkInstance, nullptr);
 	g_vkInstance = nullptr;
