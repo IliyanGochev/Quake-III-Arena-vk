@@ -60,12 +60,31 @@ static void* s_psUniformMapped = NULL;
 typedef struct vkCachedPipeline_s {
     unsigned long stateBits;
     int cullMode;
+    qboolean isMirror;
     qboolean isMultitextured;
     qboolean isSkybox;
     VkPipeline pipeline;
 } vkCachedPipeline_t;
 
 static vkCachedPipeline_t s_pipelineCache[MAX_CACHED_PIPELINES];
+
+//=============================================================================
+// Culling helpers
+//=============================================================================
+
+// Convert Q3 cull type to Vulkan cull mode, accounting for mirror rendering
+// When Y is flipped in the shader, winding order appears reversed, so we use CW as front face.
+// In mirrors, we invert the cull face (same as OpenGL GL_Cull and D3D11 CommitRasterizerState).
+static VkCullModeFlags GetVkCullMode(int cullType, qboolean isMirror) {
+    if (cullType == CT_TWO_SIDED) {
+        return VK_CULL_MODE_NONE;
+    }
+    // In mirrors, cull the opposite face
+    if (isMirror) {
+        return (cullType == CT_BACK_SIDED) ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_BACK_BIT;
+    }
+    return (cullType == CT_BACK_SIDED) ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_FRONT_BIT;
+}
 static int s_pipelineCacheCount = 0;
 
 // Dedicated 2D pipeline (different vertex format)
@@ -465,7 +484,7 @@ static VkBlendFactor GetBlendFactor(unsigned long bits, qboolean isSrc)
     }
 }
 
-static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode,
+static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean isMirror,
                                   qboolean isMultitextured, qboolean isSkybox)
 {
     // Get shaders
@@ -559,10 +578,10 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode,
     rasterizer.polygonMode = (stateBits & GLS_POLYMODE_LINE) ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
 
-    // DEBUG: Force no culling to test if Y-flip winding is the issue
-    (void)cullMode;  // Suppress unused warning
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;  // After Y flip
+    // Y is flipped in the shader (clipPos.y = -clipPos.y), which reverses winding order.
+    // Therefore, we use CW as front face instead of CCW.
+    rasterizer.cullMode = GetVkCullMode(cullMode, isMirror);
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
     // Multisampling
@@ -574,10 +593,11 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode,
     // Depth stencil
     VkPipelineDepthStencilStateCreateInfo depthStencil = {};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    // DEBUG: Temporarily disable depth test to see if that's the issue
-    depthStencil.depthTestEnable = VK_FALSE; // (stateBits & GLS_DEPTHTEST_DISABLE) ? VK_FALSE : VK_TRUE;
-    depthStencil.depthWriteEnable = VK_FALSE; // (stateBits & GLS_DEPTHMASK_TRUE) ? VK_TRUE : VK_FALSE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS; // (stateBits & GLS_DEPTHFUNC_EQUAL) ? VK_COMPARE_OP_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
+    // Enable depth test unless GLS_DEPTHTEST_DISABLE is set
+    VkBool32 depthTestDisabled = (stateBits & GLS_DEPTHTEST_DISABLE) ? VK_TRUE : VK_FALSE;
+    depthStencil.depthTestEnable = depthTestDisabled ? VK_FALSE : VK_TRUE;
+    depthStencil.depthWriteEnable = (stateBits & GLS_DEPTHMASK_TRUE) ? VK_TRUE : VK_FALSE;
+    depthStencil.depthCompareOp = (stateBits & GLS_DEPTHFUNC_EQUAL) ? VK_COMPARE_OP_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -643,7 +663,7 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode,
     return pipeline;
 }
 
-VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode,
+VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode, qboolean isMirror,
                                qboolean isMultitextured, qboolean isSkybox)
 {
     // Mask out bits that don't affect pipeline state
@@ -658,6 +678,7 @@ VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode,
     for (int i = 0; i < s_pipelineCacheCount; i++) {
         if (s_pipelineCache[i].stateBits == relevantBits &&
             s_pipelineCache[i].cullMode == cullMode &&
+            s_pipelineCache[i].isMirror == isMirror &&
             s_pipelineCache[i].isMultitextured == isMultitextured &&
             s_pipelineCache[i].isSkybox == isSkybox) {
             return s_pipelineCache[i].pipeline;
@@ -670,10 +691,11 @@ VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode,
         return VK_NULL_HANDLE;
     }
 
-    VkPipeline pipeline = CreatePipeline(relevantBits, cullMode, isMultitextured, isSkybox);
+    VkPipeline pipeline = CreatePipeline(relevantBits, cullMode, isMirror, isMultitextured, isSkybox);
     if (pipeline) {
         s_pipelineCache[s_pipelineCacheCount].stateBits = relevantBits;
         s_pipelineCache[s_pipelineCacheCount].cullMode = cullMode;
+        s_pipelineCache[s_pipelineCacheCount].isMirror = isMirror;
         s_pipelineCache[s_pipelineCacheCount].isMultitextured = isMultitextured;
         s_pipelineCache[s_pipelineCacheCount].isSkybox = isSkybox;
         s_pipelineCache[s_pipelineCacheCount].pipeline = pipeline;
@@ -862,9 +884,6 @@ VkPipelineLayout VkState_GetPipelineLayout(void)
 // UBO management
 //=============================================================================
 
-// Debug counter for uniform updates
-static int s_uniformUpdateCount = 0;
-
 void VkState_UpdateUniforms(void)
 {
     // Always update VS uniform buffer every frame (HOST_COHERENT, no flush needed)
@@ -879,21 +898,26 @@ void VkState_UpdateUniforms(void)
         vsData->depthRange[0] = g_vkViewState.depthRange[0];
         vsData->depthRange[1] = g_vkViewState.depthRange[1] - g_vkViewState.depthRange[0];
 
-        // Debug: print full matrix values first few times
-        static int debugCount = 0;
-        if (debugCount < 5) {
-            debugCount++;
-            Com_Printf("=== UBO Update %d ===\n", debugCount);
-            Com_Printf("Projection matrix (column-major):\n");
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->projection[0], vsData->projection[4], vsData->projection[8], vsData->projection[12]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->projection[1], vsData->projection[5], vsData->projection[9], vsData->projection[13]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->projection[2], vsData->projection[6], vsData->projection[10], vsData->projection[14]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->projection[3], vsData->projection[7], vsData->projection[11], vsData->projection[15]);
-            Com_Printf("ModelView matrix (column-major):\n");
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->view[0], vsData->view[4], vsData->view[8], vsData->view[12]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->view[1], vsData->view[5], vsData->view[9], vsData->view[13]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->view[2], vsData->view[6], vsData->view[10], vsData->view[14]);
-            Com_Printf("  [%.3f, %.3f, %.3f, %.3f]\n", vsData->view[3], vsData->view[7], vsData->view[11], vsData->view[15]);
+        // DEBUG: Print matrices once per second to verify they're being set
+        static int frameCount = 0;
+        if (frameCount++ % 60 == 0) {
+            // Print full projection matrix with higher precision
+            Com_Printf("Projection:\n");
+            for (int row = 0; row < 4; row++) {
+                Com_Printf("  [%9.5f %9.5f %9.5f %9.5f]\n",
+                    g_vkViewState.projectionMatrix[row + 0],
+                    g_vkViewState.projectionMatrix[row + 4],
+                    g_vkViewState.projectionMatrix[row + 8],
+                    g_vkViewState.projectionMatrix[row + 12]);
+            }
+            Com_Printf("ModelView:\n");
+            for (int row = 0; row < 4; row++) {
+                Com_Printf("  [%9.5f %9.5f %9.5f %9.5f]\n",
+                    g_vkViewState.modelViewMatrix[row + 0],
+                    g_vkViewState.modelViewMatrix[row + 4],
+                    g_vkViewState.modelViewMatrix[row + 8],
+                    g_vkViewState.modelViewMatrix[row + 12]);
+            }
         }
     }
 

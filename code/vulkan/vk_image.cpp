@@ -182,9 +182,6 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
     vkImg->mipLevels = image->mipmap ? CalculateMipLevels(scaledWidth, scaledHeight) : 1;
     vkImg->dynamic = qfalse;
 
-    Com_Printf("VkImage scaled: %s - orig %dx%d -> scaled %dx%d (mips=%d)\n",
-        image->imgName, image->width, image->height, scaledWidth, scaledHeight, vkImg->mipLevels);
-
     // Create image
     VkImageCreateInfo imageInfo = {};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -268,9 +265,6 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         int uploadWidth = vkImg->width;
         int uploadHeight = vkImg->height;
 
-        Com_Printf("VkImage_Create: %s - source %dx%d, upload %dx%d\n",
-            image->imgName, image->width, image->height, uploadWidth, uploadHeight);
-
         const byte* uploadData = pic;
         byte* resampledBuffer = NULL;
 
@@ -336,13 +330,8 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         VkBuffer vsBuffer = VkState_GetVSUniformBuffer();
         VkBuffer psBuffer = VkState_GetPSUniformBuffer();
 
-        // DEBUG: Print UBO status for ALL images
-        Com_Printf("VkImage_Create: vsBuffer=%p, psBuffer=%p for image %s (set=%p)\n",
-            (void*)vsBuffer, (void*)psBuffer, image->imgName, (void*)vkImg->descriptorSet);
-
         // Skip UBO binding if buffers not yet created
         if (!vsBuffer || !psBuffer) {
-            Com_Printf("WARNING: UBO buffers not created yet, skipping descriptor update for %s\n", image->imgName);
             return;
         }
 
@@ -414,10 +403,6 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         descriptorWrites[4].pImageInfo = &samplerOnlyInfo;
 
         qvkUpdateDescriptorSets(vk.device, 5, descriptorWrites, 0, NULL);
-
-        // DEBUG: Verify descriptor set was updated - print ALL
-        Com_Printf("Descriptor SET updated: set=%p, vsBuffer=%p for %s\n",
-            (void*)vkImg->descriptorSet, (void*)vsBuffer, image->imgName);
     }
 
     vkImg->memorySize = vkImg->width * vkImg->height * 4;
@@ -534,15 +519,5 @@ vkImage_t* VkImage_GetData(const image_t* image)
 VkDescriptorSet VkImage_GetDescriptorSet(const image_t* image)
 {
     vkImage_t* vkImg = VkImage_GetData(image);
-
-    // DEBUG: Check what we're returning
-    static int getDebugCount = 0;
-    if (getDebugCount < 10) {
-        getDebugCount++;
-        Com_Printf("VkImage_GetDescriptorSet: image=%p, index=%d, vkImg=%p, set=%p\n",
-            (void*)image, image ? image->index : -1,
-            (void*)vkImg, vkImg ? (void*)vkImg->descriptorSet : NULL);
-    }
-
     return vkImg ? vkImg->descriptorSet : VK_NULL_HANDLE;
 }

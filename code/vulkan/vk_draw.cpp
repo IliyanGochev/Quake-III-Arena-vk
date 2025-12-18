@@ -6,6 +6,7 @@
 #include "vk_buffers.h"
 #include "vk_shaders.h"
 #include <string.h>
+#include <math.h>
 
 //=============================================================================
 // Vertex formats
@@ -42,17 +43,11 @@ void VkDraw_Shutdown(void)
 // Frame management
 //=============================================================================
 
-// Debug counter for draw calls per frame
-static int s_drawCallCount = 0;
-
 qboolean VkDraw_BeginFrame(void)
 {
     if (vk.inFrame) {
         return qtrue;
     }
-
-    // Reset debug counter
-    s_drawCallCount = 0;
 
     vkFrame_t* frame = &vk.frames[vk.currentFrame];
 
@@ -111,10 +106,10 @@ static void BeginRenderPass(const float* clearColor, float clearDepth)
         clearValues[0].color.float32[2] = clearColor[2];
         clearValues[0].color.float32[3] = clearColor[3];
     } else {
-        // Debug: use magenta to see if render pass is working
-        clearValues[0].color.float32[0] = 1.0f;
+        // Default to black if no clear color specified
+        clearValues[0].color.float32[0] = 0.0f;
         clearValues[0].color.float32[1] = 0.0f;
-        clearValues[0].color.float32[2] = 1.0f;
+        clearValues[0].color.float32[2] = 0.0f;
         clearValues[0].color.float32[3] = 1.0f;
     }
     clearValues[1].depthStencil.depth = clearDepth;
@@ -132,7 +127,7 @@ static void BeginRenderPass(const float* clearColor, float clearDepth)
     qvkCmdBeginRenderPass(frame->commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     frame->inRenderPass = qtrue;
 
-    // Set default viewport and scissor
+    // Set default viewport and scissor (standard positive height)
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -296,23 +291,22 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
         return;
     }
 
-    // Debug: print first few draw calls per frame
-    s_drawCallCount++;
-    if (s_drawCallCount <= 3) {
-        shaderStage_t* pStage = input->xstages[0];
-        Com_Printf("VkDraw_StageGeneric: verts=%d, idxs=%d, stateBits=0x%x, image=%p\n",
-            input->numVertexes, input->numIndexes,
-            pStage ? pStage->stateBits : 0,
-            pStage ? (void*)pStage->bundle[0].image[0] : NULL);
+    // DEBUG: Print draw calls in 3D viewport (not full-screen)
+    static int debugFrameCount = 0;
+    int dbgVpWidth = g_vkPipelineState.viewportWidth;
+    int dbgVpHeight = g_vkPipelineState.viewportHeight;
+    qboolean is3DViewport = (qboolean)(dbgVpWidth > 0 && dbgVpWidth < (int)vk.swapchain.extent.width);
 
-        // Print first few vertex positions
-        if (input->numVertexes > 0) {
-            Com_Printf("  Vertex[0]: xyz=(%.2f, %.2f, %.2f)\n",
-                input->xyz[0][0], input->xyz[0][1], input->xyz[0][2]);
-            if (input->numVertexes > 1) {
-                Com_Printf("  Vertex[1]: xyz=(%.2f, %.2f, %.2f)\n",
-                    input->xyz[1][0], input->xyz[1][1], input->xyz[1][2]);
-            }
+    if (is3DViewport && debugFrameCount++ % 60 == 0) {
+        Com_Printf("3D Draw: shader='%s' verts=%d viewport=%dx%d\n",
+            input->shader ? input->shader->name : "NULL",
+            input->numVertexes, dbgVpWidth, dbgVpHeight);
+        // Print first few vertex Z values to check 2D/3D detection
+        int numToPrint = input->numVertexes < 5 ? input->numVertexes : 5;
+        for (int i = 0; i < numToPrint; i++) {
+            Com_Printf("  v[%d] xyz=(%.2f, %.2f, %.2f) %s\n",
+                i, input->xyz[i][0], input->xyz[i][1], input->xyz[i][2],
+                (fabsf(input->xyz[i][2]) < 0.01f) ? "<- DETECTED AS 2D!" : "");
         }
     }
 
@@ -344,20 +338,30 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
 
     VkViewport viewport = {};
     viewport.x = (float)g_vkPipelineState.viewportX;
-    // Convert OpenGL viewport Y (bottom-up) to Vulkan (top-down)
-    viewport.y = (float)(vk.swapchain.extent.height - g_vkPipelineState.viewportY - vpHeight);
+    // Convert OpenGL viewport Y (bottom-up origin) to Vulkan (top-down origin)
+    viewport.y = (float)(vk.swapchain.extent.height - g_vkPipelineState.viewportY);
     viewport.width = (float)vpWidth;
-    viewport.height = (float)vpHeight;
-    viewport.minDepth = g_vkPipelineState.depthMin;
-    viewport.maxDepth = g_vkPipelineState.depthMax;
+    viewport.height = -(float)vpHeight;
+    // Depth range is applied in shader via uniform - viewport should use [0,1]
+    // to avoid double-applying the depth range
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
     qvkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
 
+    // DEBUG: Print viewport once per second
+    static int vpDebugCount = 0;
+    if (vpDebugCount++ % 60 == 0) {
+        Com_Printf("Viewport: x=%.0f y=%.0f w=%.0f h=%.0f depthRange=[%.3f,%.3f]\n",
+            viewport.x, viewport.y, viewport.width, viewport.height,
+            g_vkPipelineState.depthMin, g_vkPipelineState.depthMax);
+    }
+
+    // Use full-screen scissor (D3D11 disables scissor for viewport changes)
     VkRect2D scissor = {};
-    scissor.offset.x = g_vkPipelineState.viewportX;
-    // Convert scissor Y to Vulkan coordinates
-    scissor.offset.y = vk.swapchain.extent.height - g_vkPipelineState.viewportY - vpHeight;
-    scissor.extent.width = vpWidth;
-    scissor.extent.height = vpHeight;
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = vk.swapchain.extent.width;
+    scissor.extent.height = vk.swapchain.extent.height;
     qvkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
 
     // Update uniforms before drawing
@@ -412,6 +416,7 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
         VkPipeline pipeline = VkState_GetPipeline(
             pStage->stateBits,
             input->shader ? input->shader->cullType : CT_TWO_SIDED,
+            backEnd.viewParms.isMirror,
             (qboolean)(pStage->bundle[1].image[0] != NULL), // multitextured if has second texture
             qfalse
         );
@@ -423,15 +428,6 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
         // Bind texture for this stage (set 0 contains UBOs and texture bindings)
         if (pStage->bundle[0].image[0]) {
             VkDescriptorSet texSet = VkImage_GetDescriptorSet(pStage->bundle[0].image[0]);
-
-            // DEBUG: Print descriptor set being bound
-            static int bindDebugCount = 0;
-            if (bindDebugCount < 5) {
-                bindDebugCount++;
-                Com_Printf("Binding descriptor set: %p for image %p\n",
-                    (void*)texSet, (void*)pStage->bundle[0].image[0]);
-            }
-
             if (texSet) {
                 qvkCmdBindDescriptorSets(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     VkState_GetPipelineLayout(), 0, 1, &texSet, 0, NULL);

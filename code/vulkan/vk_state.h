@@ -76,7 +76,7 @@ void VkState_Reset2D(void);
 void VkState_Reset3D(void);
 
 // Pipeline helpers
-VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode,
+VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode, qboolean isMirror,
                                qboolean isMultitextured, qboolean isSkybox);
 VkPipeline VkState_Get2DPipeline(void);
 
