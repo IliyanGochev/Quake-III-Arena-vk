@@ -310,38 +310,38 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         }
     }
 
-    // Create descriptor set for this image
+    // Create per-frame descriptor sets for this image
+    VkDescriptorSetLayout layouts[VK_MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorSetLayout layout = VkState_GetTextureSetLayout();
+    for (int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++) {
+        layouts[i] = layout;
+    }
+
     VkDescriptorSetAllocateInfo descAllocInfo = {};
     descAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descAllocInfo.descriptorPool = vk.descriptorPool;
-    descAllocInfo.descriptorSetCount = 1;
-    VkDescriptorSetLayout layout = VkState_GetTextureSetLayout();
-    descAllocInfo.pSetLayouts = &layout;
+    descAllocInfo.descriptorSetCount = VK_MAX_FRAMES_IN_FLIGHT;
+    descAllocInfo.pSetLayouts = layouts;
 
-    result = qvkAllocateDescriptorSets(vk.device, &descAllocInfo, &vkImg->descriptorSet);
+    result = qvkAllocateDescriptorSets(vk.device, &descAllocInfo, vkImg->descriptorSets);
     if (result == VK_SUCCESS) {
-        // Update descriptor set - write UBOs and texture
-        VkDescriptorImageInfo imageDescInfo = {};
-        imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageDescInfo.imageView = vkImg->view;
-        imageDescInfo.sampler = vkImg->sampler;
+        // Update all descriptor sets - write UBOs and texture
+        // Use the ring buffer for dynamic uniform data (per-draw offsets at bind time)
+        VkBuffer uniformBuffer = VkBuffers_GetUniformBuffer();
 
-        // UBO buffer infos
-        VkBuffer vsBuffer = VkState_GetVSUniformBuffer();
-        VkBuffer psBuffer = VkState_GetPSUniformBuffer();
-
-        // Skip UBO binding if buffers not yet created
-        if (!vsBuffer || !psBuffer) {
+        // Skip UBO binding if buffer not yet created
+        if (!uniformBuffer) {
             return;
         }
 
+        // For dynamic UBOs, offset=0 and range=struct size (actual offset at bind time)
         VkDescriptorBufferInfo vsBufferInfo = {};
-        vsBufferInfo.buffer = vsBuffer;
+        vsBufferInfo.buffer = uniformBuffer;
         vsBufferInfo.offset = 0;
         vsBufferInfo.range = VkState_GetVSUniformSize();
 
         VkDescriptorBufferInfo psBufferInfo = {};
-        psBufferInfo.buffer = psBuffer;
+        psBufferInfo.buffer = uniformBuffer;
         psBufferInfo.offset = 0;
         psBufferInfo.range = VkState_GetPSUniformSize();
 
@@ -355,54 +355,57 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         VkDescriptorImageInfo samplerOnlyInfo = {};
         samplerOnlyInfo.sampler = vkImg->sampler;
 
-        VkWriteDescriptorSet descriptorWrites[5] = {};
+        // Update each frame's descriptor set
+        for (int frame = 0; frame < VK_MAX_FRAMES_IN_FLIGHT; frame++) {
+            VkWriteDescriptorSet descriptorWrites[5] = {};
 
-        // Binding 0: VS Uniform Buffer
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = vkImg->descriptorSet;
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &vsBufferInfo;
+            // Binding 0: VS Uniform Buffer (dynamic - offset at bind time)
+            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[0].dstSet = vkImg->descriptorSets[frame];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo = &vsBufferInfo;
 
-        // Binding 1: PS Uniform Buffer
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = vkImg->descriptorSet;
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &psBufferInfo;
+            // Binding 1: PS Uniform Buffer (dynamic - offset at bind time)
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = vkImg->descriptorSets[frame];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pBufferInfo = &psBufferInfo;
 
-        // Binding 2: Diffuse texture (sampled image, separate from sampler)
-        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[2].dstSet = vkImg->descriptorSet;
-        descriptorWrites[2].dstBinding = 2;
-        descriptorWrites[2].dstArrayElement = 0;
-        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pImageInfo = &imageOnlyInfo;
+            // Binding 2: Diffuse texture (sampled image, separate from sampler)
+            descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[2].dstSet = vkImg->descriptorSets[frame];
+            descriptorWrites[2].dstBinding = 2;
+            descriptorWrites[2].dstArrayElement = 0;
+            descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            descriptorWrites[2].descriptorCount = 1;
+            descriptorWrites[2].pImageInfo = &imageOnlyInfo;
 
-        // Binding 3: Lightmap texture (for multi-texture; use same image as placeholder)
-        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[3].dstSet = vkImg->descriptorSet;
-        descriptorWrites[3].dstBinding = 3;
-        descriptorWrites[3].dstArrayElement = 0;
-        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[3].descriptorCount = 1;
-        descriptorWrites[3].pImageInfo = &imageOnlyInfo;  // Placeholder; multi-texture will update
+            // Binding 3: Lightmap texture (for multi-texture; use same image as placeholder)
+            descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[3].dstSet = vkImg->descriptorSets[frame];
+            descriptorWrites[3].dstBinding = 3;
+            descriptorWrites[3].dstArrayElement = 0;
+            descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            descriptorWrites[3].descriptorCount = 1;
+            descriptorWrites[3].pImageInfo = &imageOnlyInfo;  // Placeholder; multi-texture will update
 
-        // Binding 4: Sampler
-        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[4].dstSet = vkImg->descriptorSet;
-        descriptorWrites[4].dstBinding = 4;
-        descriptorWrites[4].dstArrayElement = 0;
-        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-        descriptorWrites[4].descriptorCount = 1;
-        descriptorWrites[4].pImageInfo = &samplerOnlyInfo;
+            // Binding 4: Sampler
+            descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[4].dstSet = vkImg->descriptorSets[frame];
+            descriptorWrites[4].dstBinding = 4;
+            descriptorWrites[4].dstArrayElement = 0;
+            descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            descriptorWrites[4].descriptorCount = 1;
+            descriptorWrites[4].pImageInfo = &samplerOnlyInfo;
 
-        qvkUpdateDescriptorSets(vk.device, 5, descriptorWrites, 0, NULL);
+            qvkUpdateDescriptorSets(vk.device, 5, descriptorWrites, 0, NULL);
+        }
     }
 
     vkImg->memorySize = vkImg->width * vkImg->height * 4;
@@ -425,8 +428,11 @@ void VkImage_Delete(const image_t* image)
     // Wait for GPU to finish using this image
     qvkDeviceWaitIdle(vk.device);
 
-    if (vkImg->descriptorSet) {
-        qvkFreeDescriptorSets(vk.device, vk.descriptorPool, 1, &vkImg->descriptorSet);
+    // Free all per-frame descriptor sets
+    for (int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkImg->descriptorSets[i]) {
+            qvkFreeDescriptorSets(vk.device, vk.descriptorPool, 1, &vkImg->descriptorSets[i]);
+        }
     }
 
     if (vkImg->sampler) {
@@ -519,5 +525,157 @@ vkImage_t* VkImage_GetData(const image_t* image)
 VkDescriptorSet VkImage_GetDescriptorSet(const image_t* image)
 {
     vkImage_t* vkImg = VkImage_GetData(image);
-    return vkImg ? vkImg->descriptorSet : VK_NULL_HANDLE;
+    if (!vkImg) {
+        return VK_NULL_HANDLE;
+    }
+    // Return the descriptor set for the current frame in flight
+    return vkImg->descriptorSets[vk.currentFrame];
+}
+
+void VkImage_BindLightmap(const image_t* diffuse, const image_t* lightmap)
+{
+    if (!diffuse || !lightmap) {
+        return;
+    }
+
+    vkImage_t* vkDiffuse = VkImage_GetData(diffuse);
+    vkImage_t* vkLightmap = VkImage_GetData(lightmap);
+
+    if (!vkDiffuse || !vkLightmap) {
+        return;
+    }
+
+    // Get current frame's descriptor set
+    VkDescriptorSet currentSet = vkDiffuse->descriptorSets[vk.currentFrame];
+    if (!currentSet) {
+        return;
+    }
+
+    // Update binding 3 (lightmap texture) of the current frame's descriptor set only
+    // This is safe because this frame's descriptor set is not in use by any pending command buffer
+    VkDescriptorImageInfo lightmapInfo = {};
+    lightmapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    lightmapInfo.imageView = vkLightmap->view;
+    lightmapInfo.sampler = VK_NULL_HANDLE;  // Not used for SAMPLED_IMAGE
+
+    VkWriteDescriptorSet descriptorWrite = {};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = currentSet;
+    descriptorWrite.dstBinding = 3;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &lightmapInfo;
+
+    qvkUpdateDescriptorSets(vk.device, 1, &descriptorWrite, 0, NULL);
+}
+
+VkDescriptorSet VkImage_AllocMultitextureSet(const image_t* diffuse, const image_t* lightmap)
+{
+    if (!diffuse || !lightmap) {
+        return VK_NULL_HANDLE;
+    }
+
+    vkImage_t* vkDiffuse = VkImage_GetData(diffuse);
+    vkImage_t* vkLightmap = VkImage_GetData(lightmap);
+
+    if (!vkDiffuse || !vkLightmap) {
+        return VK_NULL_HANDLE;
+    }
+
+    vkFrame_t* frame = &vk.frames[vk.currentFrame];
+    if (!frame->dynamicDescriptorPool) {
+        return VK_NULL_HANDLE;
+    }
+
+    // Allocate a fresh descriptor set from the frame's dynamic pool
+    VkDescriptorSetLayout layout = VkState_GetTextureSetLayout();
+    VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = frame->dynamicDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &layout;
+
+    VkDescriptorSet descSet;
+    VkResult result = qvkAllocateDescriptorSets(vk.device, &allocInfo, &descSet);
+    if (result != VK_SUCCESS) {
+        return VK_NULL_HANDLE;
+    }
+
+    // Get UBO info (use ring buffer for dynamic UBOs)
+    VkBuffer uniformBuffer = VkBuffers_GetUniformBuffer();
+    if (!uniformBuffer) {
+        return VK_NULL_HANDLE;
+    }
+
+    // For dynamic UBOs, offset=0 and range=struct size (actual offset at bind time)
+    VkDescriptorBufferInfo vsBufferInfo = {};
+    vsBufferInfo.buffer = uniformBuffer;
+    vsBufferInfo.offset = 0;
+    vsBufferInfo.range = VkState_GetVSUniformSize();
+
+    VkDescriptorBufferInfo psBufferInfo = {};
+    psBufferInfo.buffer = uniformBuffer;
+    psBufferInfo.offset = 0;
+    psBufferInfo.range = VkState_GetPSUniformSize();
+
+    // Image infos
+    VkDescriptorImageInfo diffuseInfo = {};
+    diffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    diffuseInfo.imageView = vkDiffuse->view;
+    diffuseInfo.sampler = VK_NULL_HANDLE;
+
+    VkDescriptorImageInfo lightmapInfo = {};
+    lightmapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    lightmapInfo.imageView = vkLightmap->view;
+    lightmapInfo.sampler = VK_NULL_HANDLE;
+
+    VkDescriptorImageInfo samplerInfo = {};
+    samplerInfo.sampler = vkDiffuse->sampler;
+
+    VkWriteDescriptorSet writes[5] = {};
+
+    // Binding 0: VS UBO (dynamic - offset at bind time)
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = descSet;
+    writes[0].dstBinding = 0;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    writes[0].descriptorCount = 1;
+    writes[0].pBufferInfo = &vsBufferInfo;
+
+    // Binding 1: PS UBO (dynamic - offset at bind time)
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = descSet;
+    writes[1].dstBinding = 1;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    writes[1].descriptorCount = 1;
+    writes[1].pBufferInfo = &psBufferInfo;
+
+    // Binding 2: Diffuse texture
+    writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[2].dstSet = descSet;
+    writes[2].dstBinding = 2;
+    writes[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    writes[2].descriptorCount = 1;
+    writes[2].pImageInfo = &diffuseInfo;
+
+    // Binding 3: Lightmap texture
+    writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[3].dstSet = descSet;
+    writes[3].dstBinding = 3;
+    writes[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    writes[3].descriptorCount = 1;
+    writes[3].pImageInfo = &lightmapInfo;
+
+    // Binding 4: Sampler
+    writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[4].dstSet = descSet;
+    writes[4].dstBinding = 4;
+    writes[4].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    writes[4].descriptorCount = 1;
+    writes[4].pImageInfo = &samplerInfo;
+
+    qvkUpdateDescriptorSets(vk.device, 5, writes, 0, NULL);
+
+    return descSet;
 }

@@ -2,6 +2,7 @@
 
 #include "vk_state.h"
 #include "vk_shaders.h"
+#include "vk_buffers.h"
 #include <string.h>
 
 //=============================================================================
@@ -20,11 +21,13 @@ static VkPipelineLayout s_pipelineLayout = VK_NULL_HANDLE;
 // Uniform Buffer Objects
 //=============================================================================
 
-// VS UBO layout (matches ViewDataVS in vscommon.h):
-// float4x4 Projection;  // 64 bytes
-// float4x4 View;        // 64 bytes
-// float2 DepthRange;    // 8 bytes + 8 padding
-// Total: 144 bytes (aligned to 256 for UBO alignment requirements)
+// VS UBO layout (matches ViewDataVS in GLSL shaders):
+// mat4 Projection;      // 64 bytes (offset 0)
+// mat4 View;            // 64 bytes (offset 64)
+// vec2 DepthRange;      // 8 bytes (offset 128)
+// padding;              // 8 bytes (offset 136) - align vec3 to 16 bytes
+// vec3 EyePos;          // 16 bytes (offset 144) - vec3 in std140 takes 16 bytes
+// Total: 160 bytes (aligned to 256 for UBO alignment requirements)
 #define VS_UBO_SIZE 256
 
 // PS UBO layout (matches ViewDataPS in pscommon.h):
@@ -37,7 +40,8 @@ typedef struct vsUniformData_s {
     float projection[16];
     float view[16];
     float depthRange[2];
-    float _padding[2];
+    float _padding1[2];   // align eyePos to 16 bytes (std140 requirement for vec3)
+    float eyePos[4];      // vec3 + padding (std140: vec3 takes 16 bytes)
 } vsUniformData_t;
 
 typedef struct psUniformData_s {
@@ -73,22 +77,35 @@ static vkCachedPipeline_t s_pipelineCache[MAX_CACHED_PIPELINES];
 //=============================================================================
 
 // Convert Q3 cull type to Vulkan cull mode, accounting for mirror rendering
-// When Y is flipped in the shader, winding order appears reversed, so we use CW as front face.
-// In mirrors, we invert the cull face (same as OpenGL GL_Cull and D3D11 CommitRasterizerState).
 static VkCullModeFlags GetVkCullMode(int cullType, qboolean isMirror) {
     if (cullType == CT_TWO_SIDED) {
         return VK_CULL_MODE_NONE;
     }
-    // In mirrors, cull the opposite face
-    if (isMirror) {
-        return (cullType == CT_BACK_SIDED) ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_BACK_BIT;
+
+    if (cullType == CT_BACK_SIDED) {
+        // Cull back faces, but flip for mirrors
+        // Note: Vulkan with negative viewport height flips winding, so we invert
+        if (isMirror) {
+            return VK_CULL_MODE_FRONT_BIT;
+        } else {
+            return VK_CULL_MODE_BACK_BIT;
+        }
+    } else {
+        // CT_FRONT_SIDED: Cull front faces, but flip for mirrors
+        if (isMirror) {
+            return VK_CULL_MODE_BACK_BIT;
+        } else {
+            return VK_CULL_MODE_FRONT_BIT;
+        }
     }
-    return (cullType == CT_BACK_SIDED) ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_FRONT_BIT;
 }
 static int s_pipelineCacheCount = 0;
 
 // Dedicated 2D pipeline (different vertex format)
 static VkPipeline s_2dPipeline = VK_NULL_HANDLE;
+
+// Dedicated skybox pipeline (different vertex format: position[3] + texcoord[2])
+static VkPipeline s_skyboxPipeline = VK_NULL_HANDLE;
 
 //=============================================================================
 // Initialization
@@ -171,11 +188,10 @@ void VkState_Init(void)
     g_vkViewState.clipPlane[2] = 0.0f;
     g_vkViewState.clipPlane[3] = 0.0f;
 
-    // Initialize alpha clip to disabled state
-    // alphaClip[0] = enable flag (0 = disabled, 1 = enabled)
-    // alphaClip[1] = threshold value
-    g_vkViewState.alphaClip[0] = 0.0f;  // Disabled
-    g_vkViewState.alphaClip[1] = 0.0f;  // Threshold (unused when disabled)
+    // Initialize alpha clip to "no alpha test" state (matching D3D11)
+    // alphaClip[0] = 1, alphaClip[1] = 0 means "clip if alpha < 0" which passes everything
+    g_vkViewState.alphaClip[0] = 1.0f;
+    g_vkViewState.alphaClip[1] = 0.0f;
 
     g_vkPipelineState.depthMin = 0.0f;
     g_vkPipelineState.depthMax = 1.0f;
@@ -211,15 +227,15 @@ void VkState_Init(void)
     {
         VkDescriptorSetLayoutBinding bindings[5] = {};
 
-        // Binding 0: VS Uniform Buffer
+        // Binding 0: VS Uniform Buffer (DYNAMIC - offset set at bind time for per-draw data)
         bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         bindings[0].descriptorCount = 1;
         bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-        // Binding 1: PS Uniform Buffer
+        // Binding 1: PS Uniform Buffer (DYNAMIC - offset set at bind time for per-draw data)
         bindings[1].binding = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         bindings[1].descriptorCount = 1;
         bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
@@ -290,12 +306,20 @@ void VkState_Shutdown(void)
         s_2dPipeline = VK_NULL_HANDLE;
     }
 
+    // Destroy skybox pipeline
+    if (s_skyboxPipeline) {
+        qvkDestroyPipeline(vk.device, s_skyboxPipeline, NULL);
+        s_skyboxPipeline = VK_NULL_HANDLE;
+    }
+
     // Destroy cached pipelines
     for (int i = 0; i < s_pipelineCacheCount; i++) {
         if (s_pipelineCache[i].pipeline) {
             qvkDestroyPipeline(vk.device, s_pipelineCache[i].pipeline, NULL);
         }
     }
+    // Clear the entire cache array to prevent stale handles
+    Com_Memset(s_pipelineCache, 0, sizeof(s_pipelineCache));
     s_pipelineCacheCount = 0;
 
     if (s_pipelineLayout) {
@@ -332,8 +356,9 @@ void VkState_SetState(unsigned long stateBits)
         switch (stateBits & GLS_ATEST_BITS)
         {
         case 0:
-            // No alpha test - disable alpha clipping
-            g_vkViewState.alphaClip[0] = 0.0f;  // Disabled
+            // No alpha test - use threshold 0 so nothing gets clipped (alpha always >= 0)
+            // Must match D3D11: alphaClip[0] = 1, alphaClip[1] = 0
+            g_vkViewState.alphaClip[0] = 1.0f;
             g_vkViewState.alphaClip[1] = 0.0f;
             break;
         case GLS_ATEST_GT_0:
@@ -353,8 +378,8 @@ void VkState_SetState(unsigned long stateBits)
             g_vkViewState.alphaClip[1] = 0.5f;
             break;
         default:
-            // Unknown alpha test mode - disable
-            g_vkViewState.alphaClip[0] = 0.0f;
+            // Unknown alpha test mode - treat as no alpha test (same as case 0)
+            g_vkViewState.alphaClip[0] = 1.0f;
             g_vkViewState.alphaClip[1] = 0.0f;
             break;
         }
@@ -413,6 +438,13 @@ void VkState_SetDepthRange(float minRange, float maxRange)
     g_vkViewState.depthRange[1] = maxRange;
 }
 
+void VkState_SetEyePos(const float* eyePos)
+{
+    g_vkViewState.eyePos[0] = eyePos[0];
+    g_vkViewState.eyePos[1] = eyePos[1];
+    g_vkViewState.eyePos[2] = eyePos[2];
+}
+
 //=============================================================================
 // Portal rendering
 //=============================================================================
@@ -433,24 +465,53 @@ void VkState_SetPortalRendering(qboolean enabled, const float* flipMatrix, const
 
 void VkState_Reset2D(void)
 {
-    // Setup for 2D rendering
+    // Setup for 2D rendering (match D3D11 behavior)
+
+    // Set ModelView to identity - 2D vertices are already in screen space
+    static const float identityMatrix[16] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
+    VkState_SetModelView(identityMatrix);
+
+    // Set state bits for 2D: no depth test, alpha blending
     g_vkPipelineState.cullMode = CT_TWO_SIDED;
     g_vkPipelineState.stateBits = GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 
-    // Ortho projection for 2D
-    // Will be set by the caller
+    // Disable portal rendering
+    VkState_SetPortalRendering(qfalse, NULL, NULL);
+
+    // Set depth range to 0,0 for 2D (everything at front)
+    VkState_SetDepthRange(0, 0);
 }
 
 void VkState_Reset3D(void)
 {
-    // Setup for 3D rendering
+    // Setup for 3D rendering (match D3D11 behavior)
+
+    // Set ModelView to identity - actual matrix will be set per-view
+    static const float identityMatrix[16] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    };
+    VkState_SetModelView(identityMatrix);
+
+    // Set default state bits for 3D
     g_vkPipelineState.stateBits = GLS_DEFAULT;
+
+    // Set full depth range for 3D
+    VkState_SetDepthRange(0, 1);
 }
 
 //=============================================================================
 // Pipeline creation/caching
 //=============================================================================
 
+// Get blend factor for color blending
 static VkBlendFactor GetBlendFactor(unsigned long bits, qboolean isSrc)
 {
     unsigned long mask = isSrc ? GLS_SRCBLEND_BITS : GLS_DSTBLEND_BITS;
@@ -484,9 +545,49 @@ static VkBlendFactor GetBlendFactor(unsigned long bits, qboolean isSrc)
     }
 }
 
+// Get blend factor for alpha blending (maps color factors to alpha equivalents, like D3D11)
+static VkBlendFactor GetBlendFactorAlpha(unsigned long bits, qboolean isSrc)
+{
+    unsigned long mask = isSrc ? GLS_SRCBLEND_BITS : GLS_DSTBLEND_BITS;
+    unsigned long factor = bits & mask;
+
+    if (isSrc) {
+        switch (factor) {
+            case GLS_SRCBLEND_ZERO: return VK_BLEND_FACTOR_ZERO;
+            case GLS_SRCBLEND_ONE: return VK_BLEND_FACTOR_ONE;
+            case GLS_SRCBLEND_DST_COLOR: return VK_BLEND_FACTOR_DST_ALPHA;  // Map to alpha
+            case GLS_SRCBLEND_ONE_MINUS_DST_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;  // Map to alpha
+            case GLS_SRCBLEND_SRC_ALPHA: return VK_BLEND_FACTOR_SRC_ALPHA;
+            case GLS_SRCBLEND_ONE_MINUS_SRC_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            case GLS_SRCBLEND_DST_ALPHA: return VK_BLEND_FACTOR_DST_ALPHA;
+            case GLS_SRCBLEND_ONE_MINUS_DST_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            case GLS_SRCBLEND_ALPHA_SATURATE: return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+            default: return VK_BLEND_FACTOR_ONE;
+        }
+    } else {
+        switch (factor) {
+            case GLS_DSTBLEND_ZERO: return VK_BLEND_FACTOR_ZERO;
+            case GLS_DSTBLEND_ONE: return VK_BLEND_FACTOR_ONE;
+            case GLS_DSTBLEND_SRC_COLOR: return VK_BLEND_FACTOR_SRC_ALPHA;  // Map to alpha
+            case GLS_DSTBLEND_ONE_MINUS_SRC_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;  // Map to alpha
+            case GLS_DSTBLEND_SRC_ALPHA: return VK_BLEND_FACTOR_SRC_ALPHA;
+            case GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            case GLS_DSTBLEND_DST_ALPHA: return VK_BLEND_FACTOR_DST_ALPHA;
+            case GLS_DSTBLEND_ONE_MINUS_DST_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            default: return VK_BLEND_FACTOR_ZERO;
+        }
+    }
+}
+
 static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean isMirror,
                                   qboolean isMultitextured, qboolean isSkybox)
 {
+    // Validate Vulkan state before creating pipeline
+    if (!vk.device || !vk.renderPass || !s_pipelineLayout) {
+        Com_Printf("ERROR: CreatePipeline called before Vulkan fully initialized\n");
+        return VK_NULL_HANDLE;
+    }
+
     // Get shaders
     VkShaderModule vertShader, fragShader;
     if (isSkybox) {
@@ -555,7 +656,8 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.pVertexBindingDescriptions = &bindingDesc;
-    vertexInputInfo.vertexAttributeDescriptionCount = 4;
+    // Only include TexCoord1 (location 3) for multitextured shaders
+    vertexInputInfo.vertexAttributeDescriptionCount = isMultitextured ? 4 : 3;
     vertexInputInfo.pVertexAttributeDescriptions = attrDescs;
 
     // Input assembly
@@ -578,8 +680,9 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
     rasterizer.polygonMode = (stateBits & GLS_POLYMODE_LINE) ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
 
-    // Y is flipped in the shader (clipPos.y = -clipPos.y), which reverses winding order.
-    // Therefore, we use CW as front face instead of CCW.
+    // Note: Vulkan uses negative viewport height for Y flip. This reverses winding order.
+    // Q3 geometry is CCW front-facing. After Y flip, it appears CW on screen.
+    // Keep CCW as front face, but invert which face we cull.
     rasterizer.cullMode = GetVkCullMode(cullMode, isMirror);
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
@@ -590,12 +693,10 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    // Depth stencil
+    // Depth stencil - derive from stateBits (matching D3D11 behavior)
     VkPipelineDepthStencilStateCreateInfo depthStencil = {};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    // Enable depth test unless GLS_DEPTHTEST_DISABLE is set
-    VkBool32 depthTestDisabled = (stateBits & GLS_DEPTHTEST_DISABLE) ? VK_TRUE : VK_FALSE;
-    depthStencil.depthTestEnable = depthTestDisabled ? VK_FALSE : VK_TRUE;
+    depthStencil.depthTestEnable = (stateBits & GLS_DEPTHTEST_DISABLE) ? VK_FALSE : VK_TRUE;
     depthStencil.depthWriteEnable = (stateBits & GLS_DEPTHMASK_TRUE) ? VK_TRUE : VK_FALSE;
     depthStencil.depthCompareOp = (stateBits & GLS_DEPTHFUNC_EQUAL) ? VK_COMPARE_OP_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
     depthStencil.depthBoundsTestEnable = VK_FALSE;
@@ -611,8 +712,9 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
         colorBlendAttachment.srcColorBlendFactor = GetBlendFactor(stateBits, qtrue);
         colorBlendAttachment.dstColorBlendFactor = GetBlendFactor(stateBits, qfalse);
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-        colorBlendAttachment.srcAlphaBlendFactor = colorBlendAttachment.srcColorBlendFactor;
-        colorBlendAttachment.dstAlphaBlendFactor = colorBlendAttachment.dstColorBlendFactor;
+        // Use alpha-mapped blend factors (like D3D11) for proper layered transparency
+        colorBlendAttachment.srcAlphaBlendFactor = GetBlendFactorAlpha(stateBits, qtrue);
+        colorBlendAttachment.dstAlphaBlendFactor = GetBlendFactorAlpha(stateBits, qfalse);
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
     } else {
         colorBlendAttachment.blendEnable = VK_FALSE;
@@ -666,6 +768,11 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
 VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode, qboolean isMirror,
                                qboolean isMultitextured, qboolean isSkybox)
 {
+    // Ensure Vulkan is initialized
+    if (!vk.device || !vk.initialized) {
+        return VK_NULL_HANDLE;
+    }
+
     // Mask out bits that don't affect pipeline state
     unsigned long relevantBits = stateBits & (
         GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS |
@@ -707,6 +814,12 @@ VkPipeline VkState_GetPipeline(unsigned long stateBits, int cullMode, qboolean i
 
 static VkPipeline Create2DPipeline(void)
 {
+    // Validate Vulkan state before creating pipeline
+    if (!vk.device || !vk.renderPass || !s_pipelineLayout) {
+        Com_Printf("ERROR: Create2DPipeline called before Vulkan fully initialized\n");
+        return VK_NULL_HANDLE;
+    }
+
     // Get 2D shaders
     VkShaderModule vertShader = VkShaders_GetVertexShader(VK_SHADER_IMAGE2D);
     VkShaderModule fragShader = VkShaders_GetFragmentShader(VK_SHADER_IMAGE2D);
@@ -855,10 +968,199 @@ static VkPipeline Create2DPipeline(void)
 
 VkPipeline VkState_Get2DPipeline(void)
 {
+    // Ensure Vulkan is initialized
+    if (!vk.device || !vk.initialized) {
+        return VK_NULL_HANDLE;
+    }
+
     if (!s_2dPipeline) {
         s_2dPipeline = Create2DPipeline();
     }
     return s_2dPipeline;
+}
+
+static VkPipeline CreateSkyboxPipeline(void)
+{
+    // Validate Vulkan state before creating pipeline
+    if (!vk.device || !vk.renderPass || !s_pipelineLayout) {
+        Com_Printf("ERROR: CreateSkyboxPipeline called before Vulkan fully initialized\n");
+        return VK_NULL_HANDLE;
+    }
+
+    // Get skybox shaders
+    VkShaderModule vertShader = VkShaders_GetVertexShader(VK_SHADER_SKYBOX);
+    VkShaderModule fragShader = VkShaders_GetFragmentShader(VK_SHADER_SKYBOX);
+
+    if (!vertShader || !fragShader) {
+        Com_Printf("ERROR: Failed to get skybox shaders\n");
+        return VK_NULL_HANDLE;
+    }
+
+    // Shader stages
+    VkPipelineShaderStageCreateInfo shaderStages[2] = {};
+    shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shaderStages[0].module = vertShader;
+    shaderStages[0].pName = "main";
+
+    shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shaderStages[1].module = fragShader;
+    shaderStages[1].pName = "main";
+
+    // Skybox Vertex layout: position[3] + texCoord[2] = 20 bytes
+    VkVertexInputBindingDescription bindingDesc = {};
+    bindingDesc.binding = 0;
+    bindingDesc.stride = sizeof(float) * 5;  // position[3] + texcoord[2]
+    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attrDescs[2] = {};
+    // Position - location 0 (shader expects vec4, Vulkan auto-fills w=1.0)
+    attrDescs[0].binding = 0;
+    attrDescs[0].location = 0;
+    attrDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attrDescs[0].offset = 0;
+    // TexCoord - location 1
+    attrDescs[1].binding = 0;
+    attrDescs[1].location = 1;
+    attrDescs[1].format = VK_FORMAT_R32G32_SFLOAT;
+    attrDescs[1].offset = sizeof(float) * 3;
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDesc;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = attrDescs;
+
+    // Input assembly
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    // Viewport state (dynamic)
+    VkPipelineViewportStateCreateInfo viewportState = {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // Rasterization - two-sided (no culling) for skybox
+    VkPipelineRasterizationStateCreateInfo rasterizer = {};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;  // Two-sided for skybox
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    // Multisampling
+    VkPipelineMultisampleStateCreateInfo multisampling = {};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth stencil - depth read only (no writes) for skybox
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_FALSE;  // Don't write depth
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    // Color blending - no blending for skybox
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending = {};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    // Dynamic state
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState = {};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 2;
+    dynamicState.pDynamicStates = dynamicStates;
+
+    // Create pipeline
+    VkGraphicsPipelineCreateInfo pipelineInfo = {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = s_pipelineLayout;
+    pipelineInfo.renderPass = vk.renderPass;
+    pipelineInfo.subpass = 0;
+
+    VkPipeline pipeline;
+    VkResult result = qvkCreateGraphicsPipelines(vk.device, vk.pipelineCache, 1, &pipelineInfo, NULL, &pipeline);
+    if (result != VK_SUCCESS) {
+        Com_Printf("ERROR: vkCreateGraphicsPipelines failed for skybox pipeline: %s\n", Vk_ResultString(result));
+        return VK_NULL_HANDLE;
+    }
+
+    return pipeline;
+}
+
+VkPipeline VkState_GetSkyboxPipeline(void)
+{
+    // Ensure Vulkan is initialized
+    if (!vk.device || !vk.initialized) {
+        return VK_NULL_HANDLE;
+    }
+
+    if (!s_skyboxPipeline) {
+        s_skyboxPipeline = CreateSkyboxPipeline();
+    }
+    return s_skyboxPipeline;
+}
+
+void VkState_ResetPipelines(void)
+{
+    // Wait for GPU to finish using any pipelines
+    if (vk.device) {
+        qvkDeviceWaitIdle(vk.device);
+    }
+
+    // Destroy 2D pipeline
+    if (s_2dPipeline) {
+        qvkDestroyPipeline(vk.device, s_2dPipeline, NULL);
+        s_2dPipeline = VK_NULL_HANDLE;
+    }
+
+    // Destroy skybox pipeline
+    if (s_skyboxPipeline) {
+        qvkDestroyPipeline(vk.device, s_skyboxPipeline, NULL);
+        s_skyboxPipeline = VK_NULL_HANDLE;
+    }
+
+    // Destroy cached pipelines
+    for (int i = 0; i < s_pipelineCacheCount; i++) {
+        if (s_pipelineCache[i].pipeline) {
+            qvkDestroyPipeline(vk.device, s_pipelineCache[i].pipeline, NULL);
+        }
+    }
+    Com_Memset(s_pipelineCache, 0, sizeof(s_pipelineCache));
+    s_pipelineCacheCount = 0;
 }
 
 //=============================================================================
@@ -898,27 +1200,11 @@ void VkState_UpdateUniforms(void)
         vsData->depthRange[0] = g_vkViewState.depthRange[0];
         vsData->depthRange[1] = g_vkViewState.depthRange[1] - g_vkViewState.depthRange[0];
 
-        // DEBUG: Print matrices once per second to verify they're being set
-        static int frameCount = 0;
-        if (frameCount++ % 60 == 0) {
-            // Print full projection matrix with higher precision
-            Com_Printf("Projection:\n");
-            for (int row = 0; row < 4; row++) {
-                Com_Printf("  [%9.5f %9.5f %9.5f %9.5f]\n",
-                    g_vkViewState.projectionMatrix[row + 0],
-                    g_vkViewState.projectionMatrix[row + 4],
-                    g_vkViewState.projectionMatrix[row + 8],
-                    g_vkViewState.projectionMatrix[row + 12]);
-            }
-            Com_Printf("ModelView:\n");
-            for (int row = 0; row < 4; row++) {
-                Com_Printf("  [%9.5f %9.5f %9.5f %9.5f]\n",
-                    g_vkViewState.modelViewMatrix[row + 0],
-                    g_vkViewState.modelViewMatrix[row + 4],
-                    g_vkViewState.modelViewMatrix[row + 8],
-                    g_vkViewState.modelViewMatrix[row + 12]);
-            }
-        }
+        // Copy eye position for skybox centering
+        vsData->eyePos[0] = g_vkViewState.eyePos[0];
+        vsData->eyePos[1] = g_vkViewState.eyePos[1];
+        vsData->eyePos[2] = g_vkViewState.eyePos[2];
+        vsData->eyePos[3] = 0.0f;  // padding
     }
 
     // Update PS uniform buffer if needed
@@ -951,4 +1237,46 @@ VkDeviceSize VkState_GetVSUniformSize(void)
 VkDeviceSize VkState_GetPSUniformSize(void)
 {
     return PS_UBO_SIZE;
+}
+
+//=============================================================================
+// Dynamic UBO allocation (per-draw uniforms from ring buffer)
+//=============================================================================
+
+qboolean VkState_AllocDynamicUniforms(uint32_t* outVsOffset, uint32_t* outPsOffset)
+{
+    // Allocate VS uniform data from ring buffer
+    vkBufferAlloc_t vsAlloc = VkBuffers_AllocUniform(VS_UBO_SIZE);
+    if (!vsAlloc.data) {
+        return qfalse;
+    }
+
+    // Allocate PS uniform data from ring buffer
+    vkBufferAlloc_t psAlloc = VkBuffers_AllocUniform(PS_UBO_SIZE);
+    if (!psAlloc.data) {
+        return qfalse;
+    }
+
+    // Copy VS uniform data (matrices and other state)
+    vsUniformData_t* vsData = (vsUniformData_t*)vsAlloc.data;
+    memcpy(vsData->projection, g_vkViewState.projectionMatrix, sizeof(float) * 16);
+    memcpy(vsData->view, g_vkViewState.modelViewMatrix, sizeof(float) * 16);
+    vsData->depthRange[0] = g_vkViewState.depthRange[0];
+    vsData->depthRange[1] = g_vkViewState.depthRange[1] - g_vkViewState.depthRange[0];
+    vsData->eyePos[0] = g_vkViewState.eyePos[0];
+    vsData->eyePos[1] = g_vkViewState.eyePos[1];
+    vsData->eyePos[2] = g_vkViewState.eyePos[2];
+    vsData->eyePos[3] = 0.0f;
+
+    // Copy PS uniform data (clip plane and alpha test)
+    psUniformData_t* psData = (psUniformData_t*)psAlloc.data;
+    memcpy(psData->clipPlane, g_vkViewState.clipPlane, sizeof(float) * 4);
+    psData->alphaClip[0] = g_vkViewState.alphaClip[0];
+    psData->alphaClip[1] = g_vkViewState.alphaClip[1];
+
+    // Return offsets for dynamic binding
+    *outVsOffset = (uint32_t)vsAlloc.offset;
+    *outPsOffset = (uint32_t)psAlloc.offset;
+
+    return qtrue;
 }

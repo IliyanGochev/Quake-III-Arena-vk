@@ -10,47 +10,32 @@ layout(location = 0) out vec2 outTexCoord0;
 layout(location = 1) out vec4 outColor;
 layout(location = 2) out vec4 outViewPos;
 
-// Uniform buffer at binding 0 (matches HLSL ViewDataVS)
+// Uniform buffer at binding 0 (matches ViewDataVS layout)
+// HLSL cbuffers use column-major by default, same as GLSL std140
 layout(std140, set = 0, binding = 0) uniform ViewDataVS {
     mat4 UboProjection;
     mat4 UboView;
     vec2 UboDepthRange;  // x: DepthRangeMin, y: DepthRange (max - min)
+    vec2 _pad0;          // padding for std140 alignment
+    vec3 UboEyePos;      // Camera position (unused in generic shader, but layout must match)
 };
 
 void main()
 {
-    vec4 viewPos;
-    vec4 clipPos;
+    // Always use 3D path: full transform through View and Projection
+    // (2D rendering uses dedicated image2d shader, not this one)
+    vec4 viewPos = UboView * inPosition;
+    vec4 clipPos = UboProjection * viewPos;
 
-    // Detect 2D vs 3D: 2D screen-space quads have Z near 0
-    bool is2D = (abs(inPosition.z) < 0.01);
-
-    if (is2D) {
-        // 2D mode: vertices are in screen space, skip View matrix
-        clipPos = UboProjection * inPosition;
-        viewPos = inPosition;
-
-        // Flip Y for Vulkan
-        //clipPos.y = -clipPos.y;
-
-        // 2D is drawn after 3D - put at front so it passes depth test and appears on top
-        clipPos.z = 0.0;
-    } else {
-        // 3D mode: full transform through View and Projection
-        viewPos = UboView * inPosition;
-        clipPos = UboProjection * viewPos;
-
-        // Flip Y: OpenGL Y-up -> Vulkan Y-down
-        //clipPos.y = -clipPos.y;
-
-        // Simple depth conversion: OpenGL NDC z in [-1,1] -> Vulkan [0,1]
-        // Skip the depth range hack for now to isolate the issue
-        clipPos.z = (clipPos.z * 0.5 + 0.5 * clipPos.w);
-    }
+    // Depth range hack (matches D3D11 DepthRangeHack exactly)
+    // Apply depth range to clip space Z, let hardware clamp to [0,1]
+    float ndcZ = clipPos.z / clipPos.w;
+    ndcZ = UboDepthRange.x + ndcZ * UboDepthRange.y;  // Apply depth range
+    clipPos.z = ndcZ * clipPos.w;  // Un-divide to restore clip space
 
     gl_Position = clipPos;
 
-    // Pass through vertex color and texture coords
+    // Pass vertex color - if this shows black, inColor attribute isn't bound correctly
     outColor = inColor;
     outTexCoord0 = inTexCoord0;
     outViewPos = viewPos;

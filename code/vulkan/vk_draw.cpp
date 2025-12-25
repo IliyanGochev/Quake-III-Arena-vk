@@ -25,18 +25,111 @@ typedef struct vk2DVertex_s {
     byte color[4];
 } vk2DVertex_t;
 
+// Skybox vertex: position[3] + texcoord[2] = 20 bytes (matching D3D11)
+typedef struct vkSkyboxVertex_s {
+    float position[3];
+    float texCoord[2];
+} vkSkyboxVertex_t;
+
+//=============================================================================
+// Skybox static data (matching D3D11 skybox geometry)
+//=============================================================================
+
+static const float s_skyboxVertexData[] = {
+    // Right (side 0)
+     1, -1, -1, 1, 1,
+     1, -1,  1, 1, 0,
+     1,  1,  1, 0, 0,
+     1, -1, -1, 1, 1,
+     1,  1,  1, 0, 0,
+     1,  1, -1, 0, 1,
+    // Left (side 1)
+    -1, -1,  1, 0, 0,
+    -1, -1, -1, 0, 1,
+    -1,  1, -1, 1, 1,
+    -1, -1,  1, 0, 0,
+    -1,  1, -1, 1, 1,
+    -1,  1,  1, 1, 0,
+    // Back (side 2)
+    -1,  1,  1, 0, 0,
+    -1,  1, -1, 0, 1,
+     1,  1, -1, 1, 1,
+    -1,  1,  1, 0, 0,
+     1,  1, -1, 1, 1,
+     1,  1,  1, 1, 0,
+    // Front (side 3)
+     1, -1,  1, 0, 0,
+     1, -1, -1, 0, 1,
+    -1, -1, -1, 1, 1,
+     1, -1,  1, 0, 0,
+    -1, -1, -1, 1, 1,
+    -1, -1,  1, 1, 0,
+    // Up (side 4)
+     1, -1,  1, 1, 1,
+    -1, -1,  1, 1, 0,
+    -1,  1,  1, 0, 0,
+     1, -1,  1, 1, 1,
+    -1,  1,  1, 0, 0,
+     1,  1,  1, 0, 1,
+    // Down (side 5)
+    -1, -1, -1, 1, 0,
+     1, -1, -1, 1, 1,
+     1,  1, -1, 0, 1,
+    -1, -1, -1, 1, 0,
+     1,  1, -1, 0, 1,
+    -1,  1, -1, 0, 0,
+};
+
+static VkBuffer s_skyboxVertexBuffer = VK_NULL_HANDLE;
+static VmaAllocation s_skyboxVertexAllocation = VK_NULL_HANDLE;
+
 //=============================================================================
 // Initialization
 //=============================================================================
 
+static void CreateSkyboxBuffer(void)
+{
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(s_skyboxVertexData);
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // Use CPU-accessible memory for simplicity (small static buffer)
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo allocationInfo;
+    VkResult result = vmaCreateBuffer(g_vmaAllocator, &bufferInfo, &allocInfo,
+        &s_skyboxVertexBuffer, &s_skyboxVertexAllocation, &allocationInfo);
+    if (result != VK_SUCCESS) {
+        Com_Printf("ERROR: Failed to create skybox vertex buffer: %s\n", Vk_ResultString(result));
+        return;
+    }
+
+    // Copy data directly (memory is mapped)
+    memcpy(allocationInfo.pMappedData, s_skyboxVertexData, sizeof(s_skyboxVertexData));
+    Com_Printf("Created skybox vertex buffer (%d bytes)\n", (int)sizeof(s_skyboxVertexData));
+}
+
+static void DestroySkyboxBuffer(void)
+{
+    if (s_skyboxVertexBuffer) {
+        vmaDestroyBuffer(g_vmaAllocator, s_skyboxVertexBuffer, s_skyboxVertexAllocation);
+        s_skyboxVertexBuffer = VK_NULL_HANDLE;
+        s_skyboxVertexAllocation = VK_NULL_HANDLE;
+    }
+}
+
 void VkDraw_Init(void)
 {
-    // Additional draw-specific initialization if needed
+    CreateSkyboxBuffer();
 }
 
 void VkDraw_Shutdown(void)
 {
-    // Cleanup
+    DestroySkyboxBuffer();
 }
 
 //=============================================================================
@@ -54,6 +147,11 @@ qboolean VkDraw_BeginFrame(void)
     // Wait for this frame's fence
     qvkWaitForFences(vk.device, 1, &frame->inFlightFence, VK_TRUE, UINT64_MAX);
     qvkResetFences(vk.device, 1, &frame->inFlightFence);
+
+    // Reset the dynamic descriptor pool for this frame (safe now that fence is signaled)
+    if (frame->dynamicDescriptorPool) {
+        qvkResetDescriptorPool(vk.device, frame->dynamicDescriptorPool, 0);
+    }
 
     // Acquire next swapchain image
     VkResult result = qvkAcquireNextImageKHR(vk.device, vk.swapchain.handle, UINT64_MAX,
@@ -149,9 +247,52 @@ static void BeginRenderPass(const float* clearColor, float clearDepth)
 
 void VkDraw_Clear(unsigned long bits, const float* clearCol, unsigned long stencil, float depth)
 {
-    // In Vulkan, clear happens at render pass begin or via clear attachments
-    // For now, just start the render pass with clear values
-    BeginRenderPass(clearCol, depth);
+    // Ensure we're in a frame
+    if (!vk.inFrame) {
+        VkDraw_BeginFrame();
+    }
+
+    vkFrame_t* frame = &vk.frames[vk.currentFrame];
+
+    // If not in render pass, start one with the clear values
+    if (!frame->inRenderPass) {
+        BeginRenderPass(clearCol, depth);
+        return;
+    }
+
+    // Already in render pass - use vkCmdClearAttachments for mid-pass clear
+    VkClearAttachment clearAttachments[2];
+    uint32_t attachmentCount = 0;
+
+    // Clear color if requested
+    if ((bits & CLEAR_COLOR) && clearCol) {
+        clearAttachments[attachmentCount].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        clearAttachments[attachmentCount].colorAttachment = 0;
+        clearAttachments[attachmentCount].clearValue.color.float32[0] = clearCol[0];
+        clearAttachments[attachmentCount].clearValue.color.float32[1] = clearCol[1];
+        clearAttachments[attachmentCount].clearValue.color.float32[2] = clearCol[2];
+        clearAttachments[attachmentCount].clearValue.color.float32[3] = clearCol[3];
+        attachmentCount++;
+    }
+
+    // Clear depth if requested
+    if (bits & CLEAR_DEPTH) {
+        clearAttachments[attachmentCount].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        clearAttachments[attachmentCount].colorAttachment = 0;
+        clearAttachments[attachmentCount].clearValue.depthStencil.depth = depth;
+        clearAttachments[attachmentCount].clearValue.depthStencil.stencil = (uint32_t)stencil;
+        attachmentCount++;
+    }
+
+    if (attachmentCount > 0) {
+        VkClearRect clearRect = {};
+        clearRect.rect.offset = { 0, 0 };
+        clearRect.rect.extent = vk.swapchain.extent;
+        clearRect.baseArrayLayer = 0;
+        clearRect.layerCount = 1;
+
+        qvkCmdClearAttachments(frame->commandBuffer, attachmentCount, clearAttachments, 1, &clearRect);
+    }
 }
 
 //=============================================================================
@@ -265,6 +406,23 @@ void VkDraw_Image(const image_t* image, const float* coords, const float* texcoo
     VkPipeline pipeline = VkState_Get2DPipeline();
 
     if (pipeline) {
+        // Allocate dynamic uniforms from ring buffer
+        uint32_t vsOffset, psOffset;
+        if (!VkState_AllocDynamicUniforms(&vsOffset, &psOffset)) {
+            return;  // Failed to allocate uniform buffer space
+        }
+
+        // IMPORTANT: Reset viewport to positive height for 2D rendering
+        // 3D rendering uses negative height viewport for Y-flip, but 2D uses NDC directly
+        VkViewport viewport2D = {};
+        viewport2D.x = 0.0f;
+        viewport2D.y = 0.0f;
+        viewport2D.width = (float)vk.swapchain.extent.width;
+        viewport2D.height = (float)vk.swapchain.extent.height;
+        viewport2D.minDepth = 0.0f;
+        viewport2D.maxDepth = 1.0f;
+        qvkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport2D);
+
         qvkCmdBindPipeline(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
         // Bind vertex/index buffers
@@ -272,9 +430,10 @@ void VkDraw_Image(const image_t* image, const float* coords, const float* texcoo
         qvkCmdBindVertexBuffers(frame->commandBuffer, 0, 1, &vertAlloc.buffer, offsets);
         qvkCmdBindIndexBuffer(frame->commandBuffer, idxAlloc.buffer, idxAlloc.offset, VK_INDEX_TYPE_UINT16);
 
-        // Bind texture descriptor set (set 0 contains UBOs and texture bindings)
+        // Bind texture descriptor set with dynamic UBO offsets
+        uint32_t dynamicOffsets[2] = { vsOffset, psOffset };
         qvkCmdBindDescriptorSets(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-            VkState_GetPipelineLayout(), 0, 1, &texSet, 0, NULL);
+            VkState_GetPipelineLayout(), 0, 1, &texSet, 2, dynamicOffsets);
 
         // Draw
         qvkCmdDrawIndexed(frame->commandBuffer, 6, 1, 0, 0, 0);
@@ -291,23 +450,12 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
         return;
     }
 
-    // DEBUG: Print draw calls in 3D viewport (not full-screen)
-    static int debugFrameCount = 0;
-    int dbgVpWidth = g_vkPipelineState.viewportWidth;
-    int dbgVpHeight = g_vkPipelineState.viewportHeight;
-    qboolean is3DViewport = (qboolean)(dbgVpWidth > 0 && dbgVpWidth < (int)vk.swapchain.extent.width);
-
-    if (is3DViewport && debugFrameCount++ % 60 == 0) {
-        Com_Printf("3D Draw: shader='%s' verts=%d viewport=%dx%d\n",
-            input->shader ? input->shader->name : "NULL",
-            input->numVertexes, dbgVpWidth, dbgVpHeight);
-        // Print first few vertex Z values to check 2D/3D detection
-        int numToPrint = input->numVertexes < 5 ? input->numVertexes : 5;
-        for (int i = 0; i < numToPrint; i++) {
-            Com_Printf("  v[%d] xyz=(%.2f, %.2f, %.2f) %s\n",
-                i, input->xyz[i][0], input->xyz[i][1], input->xyz[i][2],
-                (fabsf(input->xyz[i][2]) < 0.01f) ? "<- DETECTED AS 2D!" : "");
-        }
+    // Skip drawing if projection matrix hasn't been set yet (all zeros = invalid)
+    // This prevents rendering with garbage transforms at frame start
+    if (g_vkViewState.projectionMatrix[0] == 0.0f &&
+        g_vkViewState.projectionMatrix[5] == 0.0f &&
+        g_vkViewState.projectionMatrix[10] == 0.0f) {
+        return;
     }
 
     // Ensure we're in a frame and render pass
@@ -348,14 +496,6 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
     viewport.maxDepth = 1.0f;
     qvkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
 
-    // DEBUG: Print viewport once per second
-    static int vpDebugCount = 0;
-    if (vpDebugCount++ % 60 == 0) {
-        Com_Printf("Viewport: x=%.0f y=%.0f w=%.0f h=%.0f depthRange=[%.3f,%.3f]\n",
-            viewport.x, viewport.y, viewport.width, viewport.height,
-            g_vkPipelineState.depthMin, g_vkPipelineState.depthMax);
-    }
-
     // Use full-screen scissor (D3D11 disables scissor for viewport changes)
     VkRect2D scissor = {};
     scissor.offset.x = 0;
@@ -364,15 +504,25 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
     scissor.extent.height = vk.swapchain.extent.height;
     qvkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
 
-    // Update uniforms before drawing
-    VkState_UpdateUniforms();
-
     // Iterate through shader stages using xstages (the active stage list)
     for (int stage = 0; stage < MAX_SHADER_STAGES; stage++) {
         shaderStage_t* pStage = input->xstages[stage];
         if (!pStage) {
             break;
         }
+
+        // Set state bits for this stage (like D3D11 does)
+        // This may update alpha test uniforms
+        VkState_SetState(pStage->stateBits);
+
+        // Allocate dynamic uniforms from ring buffer (per-draw, so matrices are captured at draw time)
+        uint32_t vsOffset, psOffset;
+        if (!VkState_AllocDynamicUniforms(&vsOffset, &psOffset)) {
+            continue;  // Failed to allocate uniform buffer space
+        }
+
+        // Check if this stage is multitextured
+        qboolean isMultitextured = (qboolean)(pStage->bundle[1].image[0] != NULL);
 
         // Get the stage-specific variables (texcoords and colors)
         const stageVars_t* stageVars = &input->svars[stage];
@@ -417,7 +567,7 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
             pStage->stateBits,
             input->shader ? input->shader->cullType : CT_TWO_SIDED,
             backEnd.viewParms.isMirror,
-            (qboolean)(pStage->bundle[1].image[0] != NULL), // multitextured if has second texture
+            isMultitextured,
             qfalse
         );
 
@@ -425,17 +575,34 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
 
         qvkCmdBindPipeline(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-        // Bind texture for this stage (set 0 contains UBOs and texture bindings)
+        // Bind textures for this stage
         if (pStage->bundle[0].image[0]) {
-            VkDescriptorSet texSet = VkImage_GetDescriptorSet(pStage->bundle[0].image[0]);
+            VkDescriptorSet texSet;
+
+            if (isMultitextured && pStage->bundle[1].image[0]) {
+                // For multi-texture stages, allocate a fresh descriptor set from the frame's pool
+                // This avoids updating descriptor sets that may already be bound to the command buffer
+                texSet = VkImage_AllocMultitextureSet(pStage->bundle[0].image[0], pStage->bundle[1].image[0]);
+            } else {
+                // For single-texture stages, use the image's static descriptor set
+                texSet = VkImage_GetDescriptorSet(pStage->bundle[0].image[0]);
+            }
+
             if (texSet) {
+                // Bind with dynamic offsets for the uniform buffers
+                uint32_t dynamicOffsets[2] = { vsOffset, psOffset };
                 qvkCmdBindDescriptorSets(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    VkState_GetPipelineLayout(), 0, 1, &texSet, 0, NULL);
+                    VkState_GetPipelineLayout(), 0, 1, &texSet, 2, dynamicOffsets);
             }
         }
 
         // Draw
         qvkCmdDrawIndexed(frame->commandBuffer, input->numIndexes, 1, 0, 0, 0);
+
+        // Allow skipping to show just lightmaps (like D3D11)
+        if (r_lightmap->integer && (pStage->bundle[0].isLightmap || pStage->bundle[1].isLightmap || pStage->bundle[0].vertexLightmap)) {
+            break;
+        }
     }
 }
 
@@ -474,7 +641,92 @@ void VkDraw_EndTessellate(const shaderCommands_t* input)
 
 void VkDraw_SkyBox(const skyboxDrawInfo_t* skybox, const float* eye_origin, const float* colorTint)
 {
-    // TODO: Implement skybox rendering
+    if (!skybox || !s_skyboxVertexBuffer) {
+        return;
+    }
+
+    // Ensure we're in a frame and render pass
+    if (!vk.inFrame) {
+        VkDraw_BeginFrame();
+    }
+
+    vkFrame_t* frame = &vk.frames[vk.currentFrame];
+    if (!frame->inRenderPass) {
+        BeginRenderPass(NULL, 1.0f);
+    }
+
+    // Set state for skybox (no blend, depth read only - handled by pipeline)
+    VkState_SetState(0);
+
+    // Set eye position for skybox centering (skybox follows camera)
+    VkState_SetEyePos(eye_origin);
+
+    // Allocate dynamic uniforms from ring buffer (once for all 6 skybox sides)
+    uint32_t vsOffset, psOffset;
+    if (!VkState_AllocDynamicUniforms(&vsOffset, &psOffset)) {
+        return;  // Failed to allocate uniform buffer space
+    }
+
+    // Get skybox pipeline
+    VkPipeline pipeline = VkState_GetSkyboxPipeline();
+    if (!pipeline) {
+        return;
+    }
+
+    // Set viewport (same as 3D rendering - use negative height for Y flip)
+    int vpWidth = g_vkPipelineState.viewportWidth;
+    int vpHeight = g_vkPipelineState.viewportHeight;
+    if (vpWidth <= 0 || vpHeight <= 0) {
+        vpWidth = vk.swapchain.extent.width;
+        vpHeight = vk.swapchain.extent.height;
+    }
+
+    VkViewport viewport = {};
+    viewport.x = (float)g_vkPipelineState.viewportX;
+    viewport.y = (float)(vk.swapchain.extent.height - g_vkPipelineState.viewportY);
+    viewport.width = (float)vpWidth;
+    viewport.height = -(float)vpHeight;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    qvkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {};
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = vk.swapchain.extent.width;
+    scissor.extent.height = vk.swapchain.extent.height;
+    qvkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
+
+    // Bind pipeline
+    qvkCmdBindPipeline(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    // Bind skybox vertex buffer
+    VkDeviceSize offset = 0;
+    qvkCmdBindVertexBuffers(frame->commandBuffer, 0, 1, &s_skyboxVertexBuffer, &offset);
+
+    // Draw each side of the skybox
+    for (int i = 0; i < 6; i++) {
+        const skyboxSideDrawInfo_t* side = &skybox->sides[i];
+
+        if (!side->image) {
+            continue;
+        }
+
+        // Get descriptor set for this side's texture
+        VkDescriptorSet texSet = VkImage_GetDescriptorSet(side->image);
+        if (!texSet) {
+            continue;
+        }
+
+        // Bind texture with dynamic UBO offsets
+        uint32_t dynamicOffsets[2] = { vsOffset, psOffset };
+        qvkCmdBindDescriptorSets(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            VkState_GetPipelineLayout(), 0, 1, &texSet, 2, dynamicOffsets);
+
+        // Draw 6 vertices (2 triangles) for this side
+        // Vertices are arranged: side 0 = verts 0-5, side 1 = verts 6-11, etc.
+        qvkCmdDraw(frame->commandBuffer, 6, 1, i * 6, 0);
+    }
 }
 
 //=============================================================================

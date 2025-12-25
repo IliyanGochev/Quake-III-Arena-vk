@@ -873,6 +873,12 @@ qboolean Vk_RecreateSwapchain(void)
     Vk_DestroySwapchain();
 
     if (!Vk_CreateSwapchain()) return qfalse;
+
+    // Update vdConfig from actual swapchain dimensions (matches D3D11 approach)
+    vdConfig.vidWidth = vk.swapchain.extent.width;
+    vdConfig.vidHeight = vk.swapchain.extent.height;
+    vdConfig.windowAspect = vdConfig.vidWidth / (float)vdConfig.vidHeight;
+
     if (!Vk_CreateDepthBuffer()) return qfalse;
     if (!Vk_CreateFramebuffers()) return qfalse;
 
@@ -1129,6 +1135,19 @@ qboolean Vk_CreateSyncObjects(void)
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+    // Per-frame descriptor pool for transient descriptor sets (multi-texture draws)
+    VkDescriptorPoolSize dynamicPoolSizes[] = {
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1024 },  // Dynamic UBOs
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 2048 },
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 1024 },
+    };
+
+    VkDescriptorPoolCreateInfo dynamicPoolInfo = {};
+    dynamicPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    dynamicPoolInfo.poolSizeCount = sizeof(dynamicPoolSizes) / sizeof(dynamicPoolSizes[0]);
+    dynamicPoolInfo.pPoolSizes = dynamicPoolSizes;
+    dynamicPoolInfo.maxSets = 1024;  // Max descriptor sets per frame
+
     for (int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++) {
         VkResult result = qvkCreateSemaphore(vk.device, &semaphoreInfo, NULL,
             &vk.frames[i].imageAvailableSemaphore);
@@ -1146,6 +1165,14 @@ qboolean Vk_CreateSyncObjects(void)
 
         result = qvkCreateFence(vk.device, &fenceInfo, NULL,
             &vk.frames[i].inFlightFence);
+        if (result != VK_SUCCESS) {
+            Vk_DestroySyncObjects();
+            return qfalse;
+        }
+
+        // Create per-frame dynamic descriptor pool
+        result = qvkCreateDescriptorPool(vk.device, &dynamicPoolInfo, NULL,
+            &vk.frames[i].dynamicDescriptorPool);
         if (result != VK_SUCCESS) {
             Vk_DestroySyncObjects();
             return qfalse;
@@ -1170,6 +1197,10 @@ void Vk_DestroySyncObjects(void)
             qvkDestroyFence(vk.device, vk.frames[i].inFlightFence, NULL);
             vk.frames[i].inFlightFence = VK_NULL_HANDLE;
         }
+        if (vk.frames[i].dynamicDescriptorPool) {
+            qvkDestroyDescriptorPool(vk.device, vk.frames[i].dynamicDescriptorPool, NULL);
+            vk.frames[i].dynamicDescriptorPool = VK_NULL_HANDLE;
+        }
     }
 }
 
@@ -1179,10 +1210,12 @@ void Vk_DestroySyncObjects(void)
 
 qboolean Vk_CreateDescriptorPool(void)
 {
+    // Pool sizes multiplied by VK_MAX_FRAMES_IN_FLIGHT since each image
+    // now has per-frame descriptor sets for proper synchronization
     VkDescriptorPoolSize poolSizes[] = {
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2048 },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 8192 },  // Diffuse + Lightmap textures
-        { VK_DESCRIPTOR_TYPE_SAMPLER, 4096 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2048 * VK_MAX_FRAMES_IN_FLIGHT },  // Dynamic UBOs for per-draw data
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 8192 * VK_MAX_FRAMES_IN_FLIGHT },  // Diffuse + Lightmap textures
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 4096 * VK_MAX_FRAMES_IN_FLIGHT },
     };
 
     VkDescriptorPoolCreateInfo poolInfo = {};
@@ -1190,7 +1223,7 @@ qboolean Vk_CreateDescriptorPool(void)
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = sizeof(poolSizes) / sizeof(poolSizes[0]);
     poolInfo.pPoolSizes = poolSizes;
-    poolInfo.maxSets = VK_MAX_DESCRIPTOR_SETS;
+    poolInfo.maxSets = VK_MAX_DESCRIPTOR_SETS * VK_MAX_FRAMES_IN_FLIGHT;
 
     VkResult result = qvkCreateDescriptorPool(vk.device, &poolInfo, NULL, &vk.descriptorPool);
     if (result != VK_SUCCESS) {

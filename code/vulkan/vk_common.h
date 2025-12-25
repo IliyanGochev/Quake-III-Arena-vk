@@ -207,6 +207,7 @@ typedef struct vkFrame_s {
     VkSemaphore             imageAvailableSemaphore;
     VkSemaphore             renderFinishedSemaphore;
     VkFence                 inFlightFence;
+    VkDescriptorPool        dynamicDescriptorPool;  // Per-frame pool for transient descriptor sets
     qboolean                commandBufferRecording;
     qboolean                inRenderPass;
 } vkFrame_t;

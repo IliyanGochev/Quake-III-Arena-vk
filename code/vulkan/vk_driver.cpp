@@ -66,6 +66,12 @@ void VkDrv_DriverInit(void)
         return;
     }
 
+    // Update vdConfig from actual swapchain dimensions (matches D3D11 approach)
+    // This is critical for correct FOV/aspect ratio calculation in cgame
+    vdConfig.vidWidth = vk.swapchain.extent.width;
+    vdConfig.vidHeight = vk.swapchain.extent.height;
+    vdConfig.windowAspect = vdConfig.vidWidth / (float)vdConfig.vidHeight;
+
     // Create depth buffer
     if (!Vk_CreateDepthBuffer()) {
         ri.Error(ERR_FATAL, "Failed to create Vulkan depth buffer");
@@ -208,7 +214,11 @@ void VkDrv_Shutdown(void)
 
 void VkDrv_UnbindResources(void)
 {
-    // Vulkan doesn't need explicit unbinding like OpenGL
+    // Reset pipelines during partial restarts (map loads) to ensure fresh state
+    // This prevents stale pipeline handles from being used after a restart
+    if (vk.initialized && vk.device) {
+        VkState_ResetPipelines();
+    }
 }
 
 size_t VkDrv_LastError(void)
