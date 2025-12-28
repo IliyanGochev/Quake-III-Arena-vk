@@ -26,8 +26,9 @@ void main()
     vec4 clipPos = Projection * viewPos;
 
     // Depth range hack (matches D3D11 DepthRangeHack exactly)
-    // Apply depth range to clip space Z, let hardware clamp to [0,1]
+    // OpenGL projection outputs NDC Z in [-1,1], Vulkan expects [0,1]
     float ndcZ = clipPos.z / clipPos.w;
+    ndcZ = (ndcZ + 1.0) * 0.5;  // Convert OpenGL [-1,1] to Vulkan [0,1]
     ndcZ = DepthRange.x + ndcZ * DepthRange.y;  // Apply depth range
     clipPos.z = ndcZ * clipPos.w;  // Un-divide to restore clip space
 

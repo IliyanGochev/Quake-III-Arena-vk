@@ -453,8 +453,19 @@ void VkState_SetPortalRendering(qboolean enabled, const float* flipMatrix, const
 {
     g_vkPipelineState.portalRendering = enabled;
 
-    if (enabled && plane) {
-        memcpy(g_vkViewState.clipPlane, plane, sizeof(float) * 4);
+    if (enabled && plane && flipMatrix) {
+        // Transform plane by flip matrix (matches D3D11)
+        g_vkViewState.clipPlane[0] = flipMatrix[ 0] * plane[0] + flipMatrix[ 4] * plane[1] + flipMatrix[ 8] * plane[2] + flipMatrix[12] * plane[3];
+        g_vkViewState.clipPlane[1] = flipMatrix[ 1] * plane[0] + flipMatrix[ 5] * plane[1] + flipMatrix[ 9] * plane[2] + flipMatrix[13] * plane[3];
+        g_vkViewState.clipPlane[2] = flipMatrix[ 2] * plane[0] + flipMatrix[ 6] * plane[1] + flipMatrix[10] * plane[2] + flipMatrix[14] * plane[3];
+        g_vkViewState.clipPlane[3] = flipMatrix[ 3] * plane[0] + flipMatrix[ 7] * plane[1] + flipMatrix[11] * plane[2] + flipMatrix[15] * plane[3];
+        g_vkViewState.clipPlaneDirty = qtrue;
+    } else {
+        // Clear clip plane when portal rendering is disabled (matches D3D11)
+        g_vkViewState.clipPlane[0] = 0.0f;
+        g_vkViewState.clipPlane[1] = 0.0f;
+        g_vkViewState.clipPlane[2] = 0.0f;
+        g_vkViewState.clipPlane[3] = 0.0f;
         g_vkViewState.clipPlaneDirty = qtrue;
     }
 }
@@ -1197,8 +1208,12 @@ void VkState_UpdateUniforms(void)
         memcpy(vsData->projection, g_vkViewState.projectionMatrix, sizeof(float) * 16);
         memcpy(vsData->view, g_vkViewState.modelViewMatrix, sizeof(float) * 16);
 
-        vsData->depthRange[0] = g_vkViewState.depthRange[0];
-        vsData->depthRange[1] = g_vkViewState.depthRange[1] - g_vkViewState.depthRange[0];
+        // Match D3D11's depth range formula - NDC conversion is done in shader
+        // D3D11 passes (minRange, maxRange - minRange), shader handles OpenGL->Vulkan NDC conversion
+        float minRange = g_vkViewState.depthRange[0];
+        float maxRange = g_vkViewState.depthRange[1];
+        vsData->depthRange[0] = minRange;
+        vsData->depthRange[1] = maxRange - minRange;
 
         // Copy eye position for skybox centering
         vsData->eyePos[0] = g_vkViewState.eyePos[0];
@@ -1261,8 +1276,14 @@ qboolean VkState_AllocDynamicUniforms(uint32_t* outVsOffset, uint32_t* outPsOffs
     vsUniformData_t* vsData = (vsUniformData_t*)vsAlloc.data;
     memcpy(vsData->projection, g_vkViewState.projectionMatrix, sizeof(float) * 16);
     memcpy(vsData->view, g_vkViewState.modelViewMatrix, sizeof(float) * 16);
-    vsData->depthRange[0] = g_vkViewState.depthRange[0];
-    vsData->depthRange[1] = g_vkViewState.depthRange[1] - g_vkViewState.depthRange[0];
+    // Match D3D11's depth range formula - NDC conversion is done in shader
+    // D3D11 passes (minRange, maxRange - minRange), shader handles OpenGL->Vulkan NDC conversion
+    {
+        float minRange = g_vkViewState.depthRange[0];
+        float maxRange = g_vkViewState.depthRange[1];
+        vsData->depthRange[0] = minRange;
+        vsData->depthRange[1] = maxRange - minRange;
+    }
     vsData->eyePos[0] = g_vkViewState.eyePos[0];
     vsData->eyePos[1] = g_vkViewState.eyePos[1];
     vsData->eyePos[2] = g_vkViewState.eyePos[2];

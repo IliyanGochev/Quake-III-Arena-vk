@@ -604,6 +604,76 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
             break;
         }
     }
+
+    // Fog pass - blends fog color over the scene (matches D3D11 TessDrawFog)
+    if (input->fogNum && input->shader->fogPass) {
+        // Set fog blend state
+        unsigned long fogStateBits;
+        if (input->shader->fogPass == FP_EQUAL) {
+            fogStateBits = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | GLS_DEPTHFUNC_EQUAL;
+        } else {
+            fogStateBits = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+        }
+        VkState_SetState(fogStateBits);
+
+        // Allocate dynamic uniforms for fog pass
+        uint32_t fogVsOffset, fogPsOffset;
+        if (VkState_AllocDynamicUniforms(&fogVsOffset, &fogPsOffset)) {
+            // Allocate and upload fog vertex data
+            size_t fogVertSize = input->numVertexes * sizeof(vkGenericVertex_t);
+            vkBufferAlloc_t fogVertAlloc = VkBuffers_AllocVertex(fogVertSize);
+            if (fogVertAlloc.data) {
+                vkGenericVertex_t* fogVerts = (vkGenericVertex_t*)fogVertAlloc.data;
+                for (int i = 0; i < input->numVertexes; i++) {
+                    // Position (same as main pass)
+                    fogVerts[i].position[0] = input->xyz[i][0];
+                    fogVerts[i].position[1] = input->xyz[i][1];
+                    fogVerts[i].position[2] = input->xyz[i][2];
+                    fogVerts[i].position[3] = 1.0f;
+
+                    // Fog texcoords
+                    fogVerts[i].texCoord0[0] = input->fogVars.texcoords[0][i][0];
+                    fogVerts[i].texCoord0[1] = input->fogVars.texcoords[0][i][1];
+                    fogVerts[i].texCoord1[0] = 0.0f;
+                    fogVerts[i].texCoord1[1] = 0.0f;
+
+                    // Fog colors
+                    fogVerts[i].color[0] = input->fogVars.colors[i][0];
+                    fogVerts[i].color[1] = input->fogVars.colors[i][1];
+                    fogVerts[i].color[2] = input->fogVars.colors[i][2];
+                    fogVerts[i].color[3] = input->fogVars.colors[i][3];
+                }
+
+                // Bind fog vertex buffer
+                VkDeviceSize fogOffsets[] = { fogVertAlloc.offset };
+                qvkCmdBindVertexBuffers(frame->commandBuffer, 0, 1, &fogVertAlloc.buffer, fogOffsets);
+
+                // Get fog pipeline (single texture, no multitexture)
+                VkPipeline fogPipeline = VkState_GetPipeline(
+                    fogStateBits,
+                    input->shader->cullType,
+                    backEnd.viewParms.isMirror,
+                    qfalse,  // not multitextured
+                    qfalse
+                );
+
+                if (fogPipeline) {
+                    qvkCmdBindPipeline(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, fogPipeline);
+
+                    // Bind fog texture (tr.fogImage)
+                    VkDescriptorSet fogTexSet = VkImage_GetDescriptorSet(tr.fogImage);
+                    if (fogTexSet) {
+                        uint32_t fogDynamicOffsets[2] = { fogVsOffset, fogPsOffset };
+                        qvkCmdBindDescriptorSets(frame->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            VkState_GetPipelineLayout(), 0, 1, &fogTexSet, 2, fogDynamicOffsets);
+                    }
+
+                    // Draw fog
+                    qvkCmdDrawIndexed(frame->commandBuffer, input->numIndexes, 1, 0, 0, 0);
+                }
+            }
+        }
+    }
 }
 
 void VkDraw_StageVertexLitTexture(const shaderCommands_t* input)
