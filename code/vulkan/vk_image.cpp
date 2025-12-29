@@ -229,10 +229,12 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
     }
 
     // Create sampler
+    // Always use linear filtering for mag/min (matches D3D11 behavior for smooth text/UI)
+    // Only mipmap mode differs: LINEAR when mipmaps exist, NEAREST otherwise
     VkSamplerCreateInfo samplerInfo = {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = image->mipmap ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-    samplerInfo.minFilter = image->mipmap ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
     samplerInfo.mipmapMode = image->mipmap ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST;
 
     if (image->wrapClampMode == WRAPMODE_CLAMP) {

@@ -238,6 +238,12 @@ typedef struct vkContext_s {
     vkSwapchain_t           swapchain;
     vkDepthBuffer_t         depthBuffer;
 
+    // MSAA (multisampling)
+    VkSampleCountFlagBits   msaaSamples;            // Current MSAA level (1, 2, 4, or 8)
+    VkImage                 msaaColorImage;         // Multisampled color render target
+    VmaAllocation           msaaColorAllocation;    // VMA allocation for MSAA color image
+    VkImageView             msaaColorView;          // Image view for MSAA color target
+
     // Render pass
     VkRenderPass            renderPass;
     VkFramebuffer           framebuffers[VK_MAX_SWAPCHAIN_IMAGES];
@@ -290,6 +296,10 @@ qboolean    Vk_RecreateSwapchain(void);
 
 qboolean    Vk_CreateDepthBuffer(void);
 void        Vk_DestroyDepthBuffer(void);
+
+void        Vk_InitMSAA(void);
+qboolean    Vk_CreateMSAAColorBuffer(void);
+void        Vk_DestroyMSAAColorBuffer(void);
 
 qboolean    Vk_CreateRenderPass(void);
 void        Vk_DestroyRenderPass(void);

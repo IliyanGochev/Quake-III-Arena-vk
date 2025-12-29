@@ -60,6 +60,9 @@ void VkDrv_DriverInit(void)
         return;
     }
 
+    // Initialize MSAA settings (query device limits and set vk.msaaSamples)
+    Vk_InitMSAA();
+
     // Create swapchain
     if (!Vk_CreateSwapchain()) {
         ri.Error(ERR_FATAL, "Failed to create Vulkan swapchain");
@@ -71,6 +74,14 @@ void VkDrv_DriverInit(void)
     vdConfig.vidWidth = vk.swapchain.extent.width;
     vdConfig.vidHeight = vk.swapchain.extent.height;
     vdConfig.windowAspect = vdConfig.vidWidth / (float)vdConfig.vidHeight;
+
+    // Create MSAA color buffer (if MSAA enabled)
+    if (vk.msaaSamples != VK_SAMPLE_COUNT_1_BIT) {
+        if (!Vk_CreateMSAAColorBuffer()) {
+            ri.Error(ERR_FATAL, "Failed to create Vulkan MSAA color buffer");
+            return;
+        }
+    }
 
     // Create depth buffer
     if (!Vk_CreateDepthBuffer()) {
@@ -203,6 +214,7 @@ void VkDrv_Shutdown(void)
     Vk_DestroyFramebuffers();
     Vk_DestroyRenderPass();
     Vk_DestroyDepthBuffer();
+    Vk_DestroyMSAAColorBuffer();
     Vk_DestroySwapchain();
     Vk_DestroyDevice();
     Vk_DestroySurface();

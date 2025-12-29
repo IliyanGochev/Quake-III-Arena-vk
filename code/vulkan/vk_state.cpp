@@ -701,7 +701,7 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
     VkPipelineMultisampleStateCreateInfo multisampling = {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = vk.msaaSamples;
 
     // Depth stencil - derive from stateBits (matching D3D11 behavior)
     VkPipelineDepthStencilStateCreateInfo depthStencil = {};
@@ -909,7 +909,7 @@ static VkPipeline Create2DPipeline(void)
     VkPipelineMultisampleStateCreateInfo multisampling = {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = vk.msaaSamples;
 
     // Depth stencil - disabled for 2D
     VkPipelineDepthStencilStateCreateInfo depthStencil = {};
@@ -1070,7 +1070,7 @@ static VkPipeline CreateSkyboxPipeline(void)
     VkPipelineMultisampleStateCreateInfo multisampling = {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = vk.msaaSamples;
 
     // Depth stencil - depth read only (no writes) for skybox
     VkPipelineDepthStencilStateCreateInfo depthStencil = {};

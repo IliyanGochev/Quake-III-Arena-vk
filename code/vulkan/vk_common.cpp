@@ -870,6 +870,7 @@ qboolean Vk_RecreateSwapchain(void)
 
     Vk_DestroyFramebuffers();
     Vk_DestroyDepthBuffer();
+    Vk_DestroyMSAAColorBuffer();
     Vk_DestroySwapchain();
 
     if (!Vk_CreateSwapchain()) return qfalse;
@@ -879,10 +880,119 @@ qboolean Vk_RecreateSwapchain(void)
     vdConfig.vidHeight = vk.swapchain.extent.height;
     vdConfig.windowAspect = vdConfig.vidWidth / (float)vdConfig.vidHeight;
 
+    // Recreate MSAA color buffer (if MSAA enabled)
+    if (vk.msaaSamples != VK_SAMPLE_COUNT_1_BIT) {
+        if (!Vk_CreateMSAAColorBuffer()) return qfalse;
+    }
+
     if (!Vk_CreateDepthBuffer()) return qfalse;
     if (!Vk_CreateFramebuffers()) return qfalse;
 
     return qtrue;
+}
+
+//=============================================================================
+// MSAA (Multisampling)
+//=============================================================================
+
+static VkSampleCountFlagBits GetMaxUsableSampleCount(int requestedSamples)
+{
+    VkSampleCountFlags counts = vk.deviceProperties.limits.framebufferColorSampleCounts &
+                                vk.deviceProperties.limits.framebufferDepthSampleCounts;
+
+    // 0 = max supported by hardware, 1 = no MSAA
+    if (requestedSamples == 1) return VK_SAMPLE_COUNT_1_BIT;
+
+    // For 0 (max) or specific value, try highest supported up to requested
+    int maxSamples = (requestedSamples == 0) ? 64 : requestedSamples;
+
+    if (maxSamples >= 8 && (counts & VK_SAMPLE_COUNT_8_BIT)) return VK_SAMPLE_COUNT_8_BIT;
+    if (maxSamples >= 4 && (counts & VK_SAMPLE_COUNT_4_BIT)) return VK_SAMPLE_COUNT_4_BIT;
+    if (maxSamples >= 2 && (counts & VK_SAMPLE_COUNT_2_BIT)) return VK_SAMPLE_COUNT_2_BIT;
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
+void Vk_InitMSAA(void)
+{
+    // Vulkan-specific MSAA cvar (0 = max supported, 1 = no MSAA, 2/4/8 = specific level)
+    cvar_t* msaaCvar = ri.Cvar_Get("vk_multisamples", "0", CVAR_ARCHIVE | CVAR_LATCH);
+    vk.msaaSamples = GetMaxUsableSampleCount(msaaCvar->integer);
+
+    // Initialize MSAA resources to NULL
+    vk.msaaColorImage = VK_NULL_HANDLE;
+    vk.msaaColorAllocation = VK_NULL_HANDLE;
+    vk.msaaColorView = VK_NULL_HANDLE;
+
+    Com_Printf("Vulkan MSAA: %dx\n", (int)vk.msaaSamples);
+}
+
+qboolean Vk_CreateMSAAColorBuffer(void)
+{
+    // Only create MSAA buffer if MSAA is enabled (samples > 1)
+    if (vk.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+        return qtrue;
+    }
+
+    VkImageCreateInfo imageInfo = {};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = vk.swapchain.extent.width;
+    imageInfo.extent.height = vk.swapchain.extent.height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = vk.swapchain.format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    imageInfo.samples = vk.msaaSamples;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    allocInfo.preferredFlags = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+
+    VkResult result = vmaCreateImage(g_vmaAllocator, &imageInfo, &allocInfo,
+        &vk.msaaColorImage, &vk.msaaColorAllocation, NULL);
+    if (result != VK_SUCCESS) {
+        Com_Printf("ERROR: vmaCreateImage failed for MSAA color buffer: %s\n", Vk_ResultString(result));
+        return qfalse;
+    }
+
+    // Create image view
+    VkImageViewCreateInfo viewInfo = {};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = vk.msaaColorImage;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = vk.swapchain.format;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    result = qvkCreateImageView(vk.device, &viewInfo, NULL, &vk.msaaColorView);
+    if (result != VK_SUCCESS) {
+        Com_Printf("ERROR: vkCreateImageView failed for MSAA color buffer: %s\n", Vk_ResultString(result));
+        Vk_DestroyMSAAColorBuffer();
+        return qfalse;
+    }
+
+    return qtrue;
+}
+
+void Vk_DestroyMSAAColorBuffer(void)
+{
+    if (vk.msaaColorView) {
+        qvkDestroyImageView(vk.device, vk.msaaColorView, NULL);
+        vk.msaaColorView = VK_NULL_HANDLE;
+    }
+
+    if (vk.msaaColorImage) {
+        vmaDestroyImage(g_vmaAllocator, vk.msaaColorImage, vk.msaaColorAllocation);
+        vk.msaaColorImage = VK_NULL_HANDLE;
+        vk.msaaColorAllocation = VK_NULL_HANDLE;
+    }
 }
 
 //=============================================================================
@@ -905,7 +1015,7 @@ qboolean Vk_CreateDepthBuffer(void)
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.samples = vk.msaaSamples;  // Match MSAA sample count
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocInfo = {};
@@ -960,25 +1070,40 @@ void Vk_DestroyDepthBuffer(void)
 
 qboolean Vk_CreateRenderPass(void)
 {
+    qboolean msaaEnabled = (vk.msaaSamples != VK_SAMPLE_COUNT_1_BIT) ? qtrue : qfalse;
+
+    // Color attachment - either MSAA render target or direct swapchain
     VkAttachmentDescription colorAttachment = {};
     colorAttachment.format = vk.swapchain.format;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.samples = vk.msaaSamples;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.storeOp = msaaEnabled ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colorAttachment.finalLayout = msaaEnabled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    // Depth attachment - matches MSAA sample count
     VkAttachmentDescription depthAttachment = {};
     depthAttachment.format = vk.depthBuffer.format;
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.samples = vk.msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // Resolve attachment (swapchain) - only used when MSAA enabled
+    VkAttachmentDescription resolveAttachment = {};
+    resolveAttachment.format = vk.swapchain.format;
+    resolveAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    resolveAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolveAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    resolveAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    resolveAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    resolveAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    resolveAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     VkAttachmentReference colorRef = {};
     colorRef.attachment = 0;
@@ -988,11 +1113,16 @@ qboolean Vk_CreateRenderPass(void)
     depthRef.attachment = 1;
     depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference resolveRef = {};
+    resolveRef.attachment = 2;
+    resolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorRef;
     subpass.pDepthStencilAttachment = &depthRef;
+    subpass.pResolveAttachments = msaaEnabled ? &resolveRef : NULL;
 
     VkSubpassDependency dependency = {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -1005,12 +1135,14 @@ qboolean Vk_CreateRenderPass(void)
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
+    // Build attachment array based on MSAA
+    VkAttachmentDescription attachments2[] = { colorAttachment, depthAttachment };
+    VkAttachmentDescription attachments3[] = { colorAttachment, depthAttachment, resolveAttachment };
 
     VkRenderPassCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    createInfo.attachmentCount = 2;
-    createInfo.pAttachments = attachments;
+    createInfo.attachmentCount = msaaEnabled ? 3 : 2;
+    createInfo.pAttachments = msaaEnabled ? attachments3 : attachments2;
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpass;
     createInfo.dependencyCount = 1;
@@ -1039,26 +1171,48 @@ void Vk_DestroyRenderPass(void)
 
 qboolean Vk_CreateFramebuffers(void)
 {
-    for (uint32_t i = 0; i < vk.swapchain.imageCount; i++) {
-        VkImageView attachments[] = {
-            vk.swapchain.imageViews[i],
-            vk.depthBuffer.view
-        };
+    qboolean msaaEnabled = (vk.msaaSamples != VK_SAMPLE_COUNT_1_BIT) ? qtrue : qfalse;
 
+    for (uint32_t i = 0; i < vk.swapchain.imageCount; i++) {
         VkFramebufferCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         createInfo.renderPass = vk.renderPass;
-        createInfo.attachmentCount = 2;
-        createInfo.pAttachments = attachments;
         createInfo.width = vk.swapchain.extent.width;
         createInfo.height = vk.swapchain.extent.height;
         createInfo.layers = 1;
 
-        VkResult result = qvkCreateFramebuffer(vk.device, &createInfo, NULL, &vk.framebuffers[i]);
-        if (result != VK_SUCCESS) {
-            Com_Printf("ERROR: vkCreateFramebuffer failed: %s\n", Vk_ResultString(result));
-            Vk_DestroyFramebuffers();
-            return qfalse;
+        if (msaaEnabled) {
+            // MSAA: 3 attachments (MSAA color, depth, resolve target)
+            // Order must match render pass attachment order
+            VkImageView attachments[] = {
+                vk.msaaColorView,           // 0: MSAA color (render target)
+                vk.depthBuffer.view,        // 1: Depth (also MSAA)
+                vk.swapchain.imageViews[i]  // 2: Resolve target (swapchain)
+            };
+            createInfo.attachmentCount = 3;
+            createInfo.pAttachments = attachments;
+
+            VkResult result = qvkCreateFramebuffer(vk.device, &createInfo, NULL, &vk.framebuffers[i]);
+            if (result != VK_SUCCESS) {
+                Com_Printf("ERROR: vkCreateFramebuffer failed: %s\n", Vk_ResultString(result));
+                Vk_DestroyFramebuffers();
+                return qfalse;
+            }
+        } else {
+            // No MSAA: 2 attachments (color, depth)
+            VkImageView attachments[] = {
+                vk.swapchain.imageViews[i],
+                vk.depthBuffer.view
+            };
+            createInfo.attachmentCount = 2;
+            createInfo.pAttachments = attachments;
+
+            VkResult result = qvkCreateFramebuffer(vk.device, &createInfo, NULL, &vk.framebuffers[i]);
+            if (result != VK_SUCCESS) {
+                Com_Printf("ERROR: vkCreateFramebuffer failed: %s\n", Vk_ResultString(result));
+                Vk_DestroyFramebuffers();
+                return qfalse;
+            }
         }
     }
 
