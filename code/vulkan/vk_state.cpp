@@ -695,7 +695,7 @@ static VkPipeline CreatePipeline(unsigned long stateBits, int cullMode, qboolean
     // Keep CCW as front face, but invert which face we cull.
     rasterizer.cullMode = GetVkCullMode(cullMode, isMirror);
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasEnable = VK_FALSE;
+    rasterizer.depthBiasEnable = VK_TRUE;  // Dynamic state - set via vkCmdSetDepthBias
 
     // Multisampling
     VkPipelineMultisampleStateCreateInfo multisampling = {};

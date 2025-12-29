@@ -504,6 +504,15 @@ void VkDraw_StageGeneric(const shaderCommands_t* input)
     scissor.extent.height = vk.swapchain.extent.height;
     qvkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
 
+    // Set depth bias for decals/polygon offset (matches D3D11 behavior)
+    if (input->shader && input->shader->polygonOffset) {
+        // D3D11 uses r_offsetFactor for DepthBias and r_offsetUnits for SlopeScaledDepthBias
+        // Default values: r_offsetFactor = -1, r_offsetUnits = -2
+        qvkCmdSetDepthBias(frame->commandBuffer, r_offsetFactor->value, 0.0f, r_offsetUnits->value);
+    } else {
+        qvkCmdSetDepthBias(frame->commandBuffer, 0.0f, 0.0f, 0.0f);
+    }
+
     // Iterate through shader stages using xstages (the active stage list)
     for (int stage = 0; stage < MAX_SHADER_STAGES; stage++) {
         shaderStage_t* pStage = input->xstages[stage];
