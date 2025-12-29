@@ -83,8 +83,7 @@ static VkCullModeFlags GetVkCullMode(int cullType, qboolean isMirror) {
     }
 
     if (cullType == CT_BACK_SIDED) {
-        // Cull back faces, but flip for mirrors
-        // Note: Vulkan with negative viewport height flips winding, so we invert
+        // Cull back faces, but flip for mirrors (matches D3D11)
         if (isMirror) {
             return VK_CULL_MODE_FRONT_BIT;
         } else {

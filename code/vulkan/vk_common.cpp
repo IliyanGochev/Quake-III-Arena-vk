@@ -1426,6 +1426,27 @@ void Vk_CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32
     Vk_EndSingleTimeCommands(commandBuffer);
 }
 
+void Vk_CopyBufferToImageMip(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t mipLevel)
+{
+    VkCommandBuffer commandBuffer = Vk_BeginSingleTimeCommands();
+
+    VkBufferImageCopy region = {};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = mipLevel;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = { 0, 0, 0 };
+    region.imageExtent = { width, height, 1 };
+
+    qvkCmdCopyBufferToImage(commandBuffer, buffer, image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    Vk_EndSingleTimeCommands(commandBuffer);
+}
+
 const char* Vk_ResultString(VkResult result)
 {
     switch (result) {

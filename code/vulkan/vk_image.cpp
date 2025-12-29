@@ -280,28 +280,38 @@ void VkImage_Create(const image_t* image, const byte* pic, qboolean isLightmap)
         byte* lightScaled = (byte*)ri.Hunk_AllocateTempMemory(uploadWidth * uploadHeight * 4);
         memcpy(lightScaled, uploadData, uploadWidth * uploadHeight * 4);
         R_LightScaleTexture((unsigned*)lightScaled, uploadWidth, uploadHeight, (qboolean)(vkImg->mipLevels == 1));
-        uploadData = lightScaled;
 
-        size_t imageSize = uploadWidth * uploadHeight * 4;
-        if (imageSize <= s_stagingSize) {
-            memcpy(s_stagingMapped, uploadData, imageSize);
-
-            // Transition to transfer dst
+        size_t baseImageSize = uploadWidth * uploadHeight * 4;
+        if (baseImageSize <= s_stagingSize) {
+            // Transition entire image to transfer dst
             Vk_TransitionImageLayout(vkImg->image, vkImg->format,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, vkImg->mipLevels);
 
-            // Copy buffer to image - use the actual Vulkan image dimensions
+            // Upload mip level 0 (base level)
+            memcpy(s_stagingMapped, lightScaled, baseImageSize);
             Vk_CopyBufferToImage(s_stagingBuffer, vkImg->image, uploadWidth, uploadHeight);
 
-            // Generate mipmaps (this also transitions to shader read)
+            // Generate and upload remaining mip levels (like D3D11)
             if (vkImg->mipLevels > 1) {
-                // TODO: Implement mipmap generation
-                Vk_TransitionImageLayout(vkImg->image, vkImg->format,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vkImg->mipLevels);
-            } else {
-                Vk_TransitionImageLayout(vkImg->image, vkImg->format,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1);
+                int mipWidth = uploadWidth;
+                int mipHeight = uploadHeight;
+
+                for (uint32_t mip = 1; mip < vkImg->mipLevels; mip++) {
+                    // Downsample the lightScaled buffer in-place (matches D3D11's R_MipMap usage)
+                    R_MipMap(lightScaled, mipWidth, mipHeight);
+                    mipWidth = (mipWidth > 1) ? mipWidth / 2 : 1;
+                    mipHeight = (mipHeight > 1) ? mipHeight / 2 : 1;
+
+                    // Upload this mip level
+                    size_t mipSize = mipWidth * mipHeight * 4;
+                    memcpy(s_stagingMapped, lightScaled, mipSize);
+                    Vk_CopyBufferToImageMip(s_stagingBuffer, vkImg->image, mipWidth, mipHeight, mip);
+                }
             }
+
+            // Transition to shader read
+            Vk_TransitionImageLayout(vkImg->image, vkImg->format,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, vkImg->mipLevels);
         }
 
         ri.Hunk_FreeTempMemory(lightScaled);
