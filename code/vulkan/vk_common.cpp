@@ -415,13 +415,13 @@ qboolean Vk_CreateInstance(void)
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #endif
     };
-
-    const char* layers[] = {
 #ifdef _DEBUG
-        "VK_LAYER_KHRONOS_validation",
-#endif
-    };
+    const char* layers[] = {
 
+        "VK_LAYER_KHRONOS_validation",
+
+    };
+#endif
     VkInstanceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
