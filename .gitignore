@@ -25,3 +25,5 @@ baseq3/maps/autosave.map
 *.db
 *.opendb
 *.vs
+*.spv
+*.cso
