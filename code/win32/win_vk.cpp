@@ -118,6 +118,42 @@ static HWND CreateGameWindow( int x, int y, int width, int height, bool fullscre
 }
 
 //----------------------------------------------------------------------------
+// Get native monitor resolution for fullscreen mode
+//----------------------------------------------------------------------------
+static void GetNativeMonitorResolution(int* width, int* height)
+{
+    // Use EnumDisplaySettings to get actual display mode (matches OpenGL implementation)
+    DEVMODE dm;
+    ZeroMemory(&dm, sizeof(dm));
+    dm.dmSize = sizeof(dm);
+
+    if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm))
+    {
+        *width = dm.dmPelsWidth;
+        *height = dm.dmPelsHeight;
+
+        // Validate: ensure reasonable values
+        if (*width > 0 && *height > 0 && *width <= 16384 && *height <= 16384) {
+            ri.Printf(PRINT_ALL, "...detected native monitor resolution: %dx%d\n", *width, *height);
+            return;
+        }
+    }
+
+    // Fallback: GetSystemMetrics
+    *width = GetSystemMetrics(SM_CXSCREEN);
+    *height = GetSystemMetrics(SM_CYSCREEN);
+
+    // Last resort fallback to 1920x1080 if detection fails
+    if (*width <= 0 || *height <= 0 || *width > 16384 || *height > 16384) {
+        ri.Printf(PRINT_WARNING, "WARNING: Could not detect monitor resolution, using fallback 1920x1080\n");
+        *width = 1920;
+        *height = 1080;
+    } else {
+        ri.Printf(PRINT_ALL, "...using system metrics: %dx%d\n", *width, *height);
+    }
+}
+
+//----------------------------------------------------------------------------
 // Create VkSurfaceKHR for Win32
 //----------------------------------------------------------------------------
 static void CreateVulkanSurface()
@@ -152,12 +188,40 @@ void VKWnd_Init( void )
 
     bool fullscreen = r_fullscreen->integer != 0;
 
+    int windowWidth, windowHeight;
+
+    if (fullscreen) {
+        // For fullscreen mode, use native monitor resolution
+        GetNativeMonitorResolution(&windowWidth, &windowHeight);
+
+        // Update vdConfig so swapchain creation uses correct size
+        vdConfig.vidWidth = windowWidth;
+        vdConfig.vidHeight = windowHeight;
+        vdConfig.windowAspect = (float)windowWidth / (float)windowHeight;
+
+        // CRITICAL: Also update the cvars so R_InitVMode gets correct values
+        // R_InitVMode reads these cvars when r_mode=-1 to set vdConfig
+        float aspect = (float)windowWidth / (float)windowHeight;
+        ri.Cvar_Set("r_customwidth", va("%d", windowWidth));
+        ri.Cvar_Set("r_customheight", va("%d", windowHeight));
+        ri.Cvar_Set("r_customaspect", va("%.3f", aspect));
+
+        ri.Printf(PRINT_ALL, "...using fullscreen mode at native resolution: %dx%d\n",
+                  windowWidth, windowHeight);
+    } else {
+        // For windowed mode, use configured resolution from vdConfig
+        windowWidth = vdConfig.vidWidth;
+        windowHeight = vdConfig.vidHeight;
+
+        ri.Printf(PRINT_ALL, "...using windowed mode: %dx%d\n", windowWidth, windowHeight);
+    }
+
     // Create window
     g_hWnd = CreateGameWindow(
         vid_xpos->integer,
         vid_ypos->integer,
-        vdConfig.vidWidth,
-        vdConfig.vidHeight,
+        windowWidth,
+        windowHeight,
         fullscreen);
     if ( !g_hWnd )
     {
@@ -165,7 +229,11 @@ void VKWnd_Init( void )
         return;
     }
 
-    ri.Printf(PRINT_ALL, "...created game window\n");
+    // Verify actual window size
+    int actualWidth, actualHeight;
+    VKWnd_GetWindowSize(&actualWidth, &actualHeight);
+    ri.Printf(PRINT_ALL, "...created game window: requested=%dx%d, actual client area=%dx%d\n",
+              windowWidth, windowHeight, actualWidth, actualHeight);
 
 	// Initialize Vulkan instance
     VK_CreateInstance();

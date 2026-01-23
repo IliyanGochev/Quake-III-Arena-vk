@@ -44,6 +44,11 @@ void VK_SetupVideoConfig(void) {
 
     vdConfig.vidWidth = g_vkDevice.swapchainExtent.width;
     vdConfig.vidHeight = g_vkDevice.swapchainExtent.height;
+    vdConfig.windowAspect = (float)vdConfig.vidWidth / (float)vdConfig.vidHeight;
+
+    ri.Printf(PRINT_ALL, "...VK_SetupVideoConfig: swapchainExtent=%dx%d, vdConfig=%dx%d\n",
+              g_vkDevice.swapchainExtent.width, g_vkDevice.swapchainExtent.height,
+              vdConfig.vidWidth, vdConfig.vidHeight);
 }
 
 //----------------------------------------------------------------------------
@@ -229,6 +234,13 @@ void VK_UpdateCinematic(const image_t* image, const byte* pic, int cols, int row
 // Draw image (2D/UI)
 //----------------------------------------------------------------------------
 void VK_DrawImage(const image_t* image, const float* coords, const float* texcoords, const float* color) {
+    // DEBUG: Log first few calls
+    static int totalCallCount = 0;
+    if (totalCallCount < 10) {
+        ri.Printf(PRINT_ALL, "VK_DrawImage call #%d: image='%s'\n", totalCallCount, image ? image->imgName : "NULL");
+    }
+    totalCallCount++;
+
     if (!image) {
         return;
     }
@@ -238,6 +250,18 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
         return;
     }
 
+    // Log coordinates for first few draws to debug resolution issue
+    static int coordLogCount = 0;
+    if (coordLogCount < 5) {
+        ri.Printf(PRINT_ALL, "VK_DrawImage #%d: coords=[%.1f, %.1f, %.1f, %.1f] texcoords=[%.3f, %.3f, %.3f, %.3f]\n",
+                  coordLogCount,
+                  coords[0], coords[1], coords[2], coords[3],
+                  texcoords[0], texcoords[1], texcoords[2], texcoords[3]);
+        ri.Printf(PRINT_ALL, "  -> image size: %dx%d, name: '%s'\n",
+                  image->width, image->height, image->imgName);
+        coordLogCount++;
+    }
+
     // Lazy frame begin - start frame if not already started
     if (!g_vkDraw.inRenderPass) {
         VK_BeginFrame();
@@ -245,6 +269,14 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
         // CRITICAL: Re-apply the viewport after BeginFrame
         // VK_BeginFrame sets viewport to swapchain size, but we need the
         // viewport that was set by Set2DProjection to match the orthographic projection
+        static int drawImageLogCount = 0;
+        if (drawImageLogCount < 3) {
+            ri.Printf(PRINT_ALL, "VK_DrawImage: Re-applying stored viewport: %dx%d at (%d,%d)\n",
+                      g_vkRunState.viewportWidth, g_vkRunState.viewportHeight,
+                      g_vkRunState.viewportX, g_vkRunState.viewportY);
+            drawImageLogCount++;
+        }
+
         if (g_vkRunState.viewportWidth > 0 && g_vkRunState.viewportHeight > 0) {
             VK_SetViewport(g_vkRunState.viewportX, g_vkRunState.viewportY,
                           g_vkRunState.viewportWidth, g_vkRunState.viewportHeight);
@@ -333,11 +365,24 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
     key.polygonMode = 0;  // Fill mode
     key.sampleCount = g_vkDevice.msaaSamples;
 
+    // DEBUG: Log pipeline request
+    static int pipelineLogCount = 0;
+    if (pipelineLogCount < 3) {
+        ri.Printf(PRINT_ALL, "VK_DrawImage: Requesting pipeline with shaderType=%d (VK_SHADER_FSQ=%d)\n",
+                  key.shaderType, VK_SHADER_FSQ);
+        pipelineLogCount++;
+    }
+
     // Get or create pipeline
     VkPipeline pipeline = VK_GetOrCreatePipeline(key);
     if (pipeline == VK_NULL_HANDLE) {
         ri.Printf(PRINT_WARNING, "WARNING: Failed to get FSQ pipeline\n");
         return;
+    }
+
+    // DEBUG: Log pipeline binding
+    if (pipelineLogCount <= 3) {
+        ri.Printf(PRINT_ALL, "VK_DrawImage: Binding FSQ pipeline=%p\n", pipeline);
     }
 
     // Bind pipeline
@@ -442,12 +487,8 @@ void VK_SetProjectionMatrix(const float* projMatrix) {
     memcpy(g_vkRunState.projectionMatrix, projMatrix, sizeof(float) * 16);
 
     // Convert OpenGL depth range [-1, 1] to Vulkan depth range [0, 1]
-    // OpenGL NDC: Z_ndc = m[10]*z + m[14] (after division by W)
-    // We want: Z_vulkan = (Z_opengl + 1) / 2 = 0.5 * Z_opengl + 0.5
-    // Therefore:
-    //   m_vk[10] = 0.5 * m_gl[10]
-    //   m_vk[14] = 0.5 * m_gl[14] + 0.5
-    g_vkRunState.projectionMatrix[10] = projMatrix[10] * 0.5f;
+    // This formula works for BOTH orthographic and perspective projections
+    g_vkRunState.projectionMatrix[10] = projMatrix[10] * 0.5f - projMatrix[11] * 0.5f;
     g_vkRunState.projectionMatrix[14] = projMatrix[14] * 0.5f + 0.5f;
 
     g_vkRunState.viewVSDirty = qtrue;
@@ -479,6 +520,14 @@ void VK_GetModelViewMatrix(float* modelViewMatrix) {
 // Set viewport
 //----------------------------------------------------------------------------
 void VK_SetViewport(int left, int top, int width, int height) {
+    static int logCount = 0;
+    if (logCount < 5) {  // Only log first 5 calls to avoid spam
+        ri.Printf(PRINT_ALL, "VK_SetViewport: left=%d, top=%d, width=%d, height=%d (swapchainExtent=%dx%d)\n",
+                  left, top, width, height,
+                  g_vkDevice.swapchainExtent.width, g_vkDevice.swapchainExtent.height);
+        logCount++;
+    }
+
     // Only set viewport/scissor if we're in a render pass
     // Otherwise just store the values for when the render pass begins
     if (!g_vkDraw.inRenderPass) {
@@ -491,22 +540,32 @@ void VK_SetViewport(int left, int top, int width, int height) {
 
     VkCommandBuffer cmd = VK_GetCurrentCommandBuffer();
 
+    // Convert OpenGL window coordinates to Vulkan framebuffer coordinates
+    // OpenGL: y=0 at bottom, increases upward
+    // Vulkan: y=0 at top, increases downward
+    // With negative height, viewport.y specifies the BOTTOM edge
+    int screenHeight = g_vkDevice.swapchainExtent.height;
+
     VkViewport viewport = {};
     viewport.x = (float)left;
-    // For negative height (Y-flip), viewport.y must be the BOTTOM of the region
-    // This makes NDC y=-1 map to (top) and y=+1 map to (top + height)
-    viewport.y = (float)(top + height);
+    viewport.y = (float)(screenHeight - top);  // Bottom edge in Vulkan coords
     viewport.width = (float)width;
-    viewport.height = -(float)height;  // Negative for Y-flip
+    viewport.height = -(float)height;  // Negative to flip Y axis
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
+    if (logCount < 5) {
+        ri.Printf(PRINT_ALL, "  -> Vulkan viewport: x=%.0f, y=%.0f, width=%.0f, height=%.0f\n",
+                  viewport.x, viewport.y, viewport.width, viewport.height);
+    }
+
     vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-    // Update scissor to match
+    // Like D3D11, we set scissor to full screen (effectively disabling it)
+    // This avoids any scissor clipping issues
     VkRect2D scissor = {};
-    scissor.offset = {left, top};
-    scissor.extent = {(uint32_t)width, (uint32_t)height};
+    scissor.offset = {0, 0};
+    scissor.extent = g_vkDevice.swapchainExtent;
 
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 

@@ -617,12 +617,16 @@ VkPresentModeKHR VK_ChoosePresentMode(const std::vector<VkPresentModeKHR>& avail
 VkExtent2D VK_ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
     // If width is UINT32_MAX, we can choose our own extent
     if (capabilities.currentExtent.width != UINT32_MAX) {
+        ri.Printf(PRINT_ALL, "...using surface capabilities extent: %dx%d\n",
+                  capabilities.currentExtent.width, capabilities.currentExtent.height);
         return capabilities.currentExtent;
     }
 
     // Otherwise, get window size and clamp to supported range
     int width, height;
     VKWnd_GetWindowSize(&width, &height);
+
+    ri.Printf(PRINT_ALL, "...surface extent is flexible, using window size: %dx%d\n", width, height);
 
     VkExtent2D actualExtent = {
         static_cast<uint32_t>(width),
@@ -701,6 +705,8 @@ void VK_CreateSwapchain() {
 
     g_vkDevice.swapchainFormat = surfaceFormat.format;
     g_vkDevice.swapchainExtent = extent;
+
+    ri.Printf(PRINT_ALL, "...created swapchain with extent: %dx%d\n", extent.width, extent.height);
 
     // Create image views
     g_vkDevice.swapchainImageViews.resize(g_vkDevice.swapchainImageCount);

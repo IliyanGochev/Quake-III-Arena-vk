@@ -96,15 +96,29 @@ VkCommandBuffer VK_BeginSingleTimeCommands() {
 void VK_EndSingleTimeCommands(VkCommandBuffer commandBuffer) {
     vkEndCommandBuffer(commandBuffer);
 
+    // Create fence to wait for this specific submission
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = 0;  // Unsignaled initially
+
+    VkFence fence;
+    VK_CHECK(vkCreateFence(g_vkDevice.device, &fenceInfo, nullptr, &fence));
+
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(g_vkDevice.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(g_vkDevice.graphicsQueue);
+    // Submit with fence instead of VK_NULL_HANDLE
+    VK_CHECK(vkQueueSubmit(g_vkDevice.graphicsQueue, 1, &submitInfo, fence));
 
-    // FIXED: Free from transfer pool instead of frame pool
+    // Wait for this specific submission only, not the entire queue
+    VK_CHECK(vkWaitForFences(g_vkDevice.device, 1, &fence, VK_TRUE, UINT64_MAX));
+
+    // Clean up fence
+    vkDestroyFence(g_vkDevice.device, fence, nullptr);
+
+    // Free from transfer pool
     vkFreeCommandBuffers(g_vkDevice.device, g_vkDevice.transferCommandPool, 1, &commandBuffer);
 }
 
@@ -664,32 +678,23 @@ void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int 
         return;
     }
 
+    // Log first few cinematic updates
+    static int updateLogCount = 0;
+    if (updateLogCount < 5) {
+        ri.Printf(PRINT_ALL, "VK_UpdateDynamicImage: '%s' %dx%d, dirty=%d, exists=%d\n",
+                  image->imgName, cols, rows, dirty,
+                  (vkImg->image != VK_NULL_HANDLE) ? 1 : 0);
+        updateLogCount++;
+    }
+
     // If dimensions changed or image doesn't exist yet, recreate it
+    // This requires GPU synchronization, but it's rare (only on first frame or resolution change)
     if (vkImg->image == VK_NULL_HANDLE || cols != vkImg->width || rows != vkImg->height) {
-
-        // CRITICAL: End render pass, submit current work, and wait for GPU
-        // We must do this to safely modify resources without invalidating command buffers
-        qboolean wasInRenderPass = g_vkDraw.inRenderPass;
-        if (wasInRenderPass) {
-            vkFrameData_t* frame = &g_vkDevice.frames[g_vkDraw.currentFrame];
-            vkCmdEndRenderPass(frame->commandBuffer);
-            g_vkDraw.inRenderPass = qfalse;
-
-            // End and submit the command buffer
-            vkEndCommandBuffer(frame->commandBuffer);
-            VkSubmitInfo submitInfo = {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &frame->commandBuffer;
-            vkQueueSubmit(g_vkDevice.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        }
-
+        // Flush GPU and destroy old resources
         VK_FlushGPU();
 
-        // Store the old descriptor set to reuse it
-        VkDescriptorSet oldDescriptorSet = vkImg->descriptorSet;
-
         // Destroy old image resources (GPU is idle, safe to destroy)
+        // Also destroy the old descriptor set - DON'T reuse it (would invalidate command buffers)
         if (vkImg->stagingBuffer != VK_NULL_HANDLE) {
             if (vkImg->stagingMappedData != nullptr) {
                 vmaUnmapMemory(g_vkDevice.allocator, vkImg->stagingAllocation);
@@ -705,12 +710,13 @@ void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int 
         if (vkImg->image != VK_NULL_HANDLE) {
             vmaDestroyImage(g_vkDevice.allocator, vkImg->image, vkImg->allocation);
         }
+        // Note: Descriptor set will be freed when the image pool is reset
+        // We DON'T reuse it because updating it would invalidate command buffers
 
-        // Clear the structure but preserve the descriptor set
+        // Clear the structure completely
         memset(vkImg, 0, sizeof(vkImage_t));
-        vkImg->descriptorSet = oldDescriptorSet;
 
-        // Create new image
+        // Create new image with new descriptor set
         image_t tempImage = *image;
         tempImage.width = cols;
         tempImage.height = rows;
@@ -719,76 +725,13 @@ void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int 
         VK_CreateImageFromPixels(&tempImage, pic, qfalse);
         vkImg->dynamic = qtrue;
 
-        // If we had an old descriptor set, update it to point to the new image
-        // Otherwise VK_CreateImageFromPixels already created one
-        if (oldDescriptorSet != VK_NULL_HANDLE) {
-            VkDescriptorImageInfo imageInfo = {};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = vkImg->view;
-            imageInfo.sampler = vkImg->sampler;
-
-            VkWriteDescriptorSet descriptorWrite = {};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = vkImg->descriptorSet;
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrite.descriptorCount = 1;
-            descriptorWrite.pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(g_vkDevice.device, 1, &descriptorWrite, 0, nullptr);
-        }
-
-        // Resume rendering if we paused it - restart the command buffer and render pass
-        if (wasInRenderPass) {
-            vkFrameData_t* frame = &g_vkDevice.frames[g_vkDraw.currentFrame];
-
-            // Reset and restart command buffer
-            vkResetCommandBuffer(frame->commandBuffer, 0);
-            VkCommandBufferBeginInfo beginInfo = {};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            vkBeginCommandBuffer(frame->commandBuffer, &beginInfo);
-
-            // Restart render pass
-            VkClearValue clearValues[3];
-            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clearValues[2].depthStencil = {1.0f, 0};
-            qboolean msaaEnabled = (g_vkDevice.msaaSamples > VK_SAMPLE_COUNT_1_BIT) ? qtrue : qfalse;
-
-            VkRenderPassBeginInfo renderPassInfo = {};
-            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = g_vkDevice.renderPass;
-            renderPassInfo.framebuffer = g_vkDevice.framebuffers[g_vkDraw.imageIndex];
-            renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = g_vkDevice.swapchainExtent;
-            renderPassInfo.clearValueCount = msaaEnabled ? 3 : 2;
-            renderPassInfo.pClearValues = clearValues;
-            vkCmdBeginRenderPass(frame->commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-            // Restore viewport and scissor
-            VkViewport viewport = {};
-            viewport.x = 0.0f;
-            viewport.y = (float)g_vkDevice.swapchainExtent.height;
-            viewport.width = (float)g_vkDevice.swapchainExtent.width;
-            viewport.height = -(float)g_vkDevice.swapchainExtent.height;
-            viewport.minDepth = 0.0f;
-            viewport.maxDepth = 1.0f;
-            vkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
-
-            VkRect2D scissor = {};
-            scissor.offset = {0, 0};
-            scissor.extent = g_vkDevice.swapchainExtent;
-            vkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
-
-            g_vkDraw.inRenderPass = qtrue;
-        }
-
+        // VK_CreateImageFromPixels already created a new descriptor set
+        // No need to mark for upload - data already uploaded
+        // Staging buffer will be created on the next dirty update
         return;
     }
 
-    // Update existing image
+    // Update existing image - CPU-only operation
     if (dirty) {
         // Create staging buffer on first update
         if (vkImg->stagingBuffer == VK_NULL_HANDLE) {
@@ -798,81 +741,48 @@ void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int 
             vkImg->dynamic = qtrue;
         }
 
-        // Copy to staging buffer
+        // CPU copy only - instant, no GPU work
         memcpy(vkImg->stagingMappedData, pic, cols * rows * 4);
 
-        // CRITICAL: Pause rendering, submit work, and wait for GPU
-        qboolean wasInRenderPass = g_vkDraw.inRenderPass;
-        if (wasInRenderPass) {
-            vkFrameData_t* frame = &g_vkDevice.frames[g_vkDraw.currentFrame];
-            vkCmdEndRenderPass(frame->commandBuffer);
-            g_vkDraw.inRenderPass = qfalse;
+        // Mark for GPU upload at next frame start
+        vkImg->needsUpload = qtrue;
+    }
+}
 
-            // End and submit
-            vkEndCommandBuffer(frame->commandBuffer);
-            VkSubmitInfo submitInfo = {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &frame->commandBuffer;
-            vkQueueSubmit(g_vkDevice.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+//----------------------------------------------------------------------------
+// Upload pending dynamic images (call at frame start, before render pass)
+//----------------------------------------------------------------------------
+void VK_UploadPendingImages() {
+    for (int i = 0; i < VK_MAX_IMAGES; i++) {
+        vkImage_t* vkImg = &g_vkImages[i];
+
+        // Skip images that don't need uploading
+        if (!vkImg->image || !vkImg->needsUpload) {
+            continue;
         }
 
-        VK_FlushGPU();
+        // Validate staging buffer exists
+        if (vkImg->stagingBuffer == VK_NULL_HANDLE) {
+            ri.Printf(PRINT_WARNING, "WARNING: Image %d marked for upload but has no staging buffer\n", i);
+            vkImg->needsUpload = qfalse;
+            continue;
+        }
 
-        // Update using transfer pool (now safe - GPU is idle)
+        // Transition to transfer destination layout
         VK_TransitionImageLayout(vkImg->image, vkImg->format,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1);
-        VK_CopyBufferToImage(vkImg->stagingBuffer, vkImg->image, cols, rows);
+
+        // Copy staging buffer to GPU image
+        VK_CopyBufferToImage(vkImg->stagingBuffer, vkImg->image, vkImg->width, vkImg->height);
+
+        // Transition back to shader read layout
         VK_TransitionImageLayout(vkImg->image, vkImg->format,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1);
 
-        // Resume rendering if we paused it
-        if (wasInRenderPass) {
-            vkFrameData_t* frame = &g_vkDevice.frames[g_vkDraw.currentFrame];
-
-            // Reset and restart command buffer
-            vkResetCommandBuffer(frame->commandBuffer, 0);
-            VkCommandBufferBeginInfo beginInfo = {};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            vkBeginCommandBuffer(frame->commandBuffer, &beginInfo);
-
-            // Restart render pass
-            VkClearValue clearValues[3];
-            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clearValues[2].depthStencil = {1.0f, 0};
-            qboolean msaaEnabled = (g_vkDevice.msaaSamples > VK_SAMPLE_COUNT_1_BIT) ? qtrue : qfalse;
-
-            VkRenderPassBeginInfo renderPassInfo = {};
-            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = g_vkDevice.renderPass;
-            renderPassInfo.framebuffer = g_vkDevice.framebuffers[g_vkDraw.imageIndex];
-            renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = g_vkDevice.swapchainExtent;
-            renderPassInfo.clearValueCount = msaaEnabled ? 3 : 2;
-            renderPassInfo.pClearValues = clearValues;
-            vkCmdBeginRenderPass(frame->commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-            // Restore viewport and scissor
-            VkViewport viewport = {};
-            viewport.x = 0.0f;
-            viewport.y = (float)g_vkDevice.swapchainExtent.height;
-            viewport.width = (float)g_vkDevice.swapchainExtent.width;
-            viewport.height = -(float)g_vkDevice.swapchainExtent.height;
-            viewport.minDepth = 0.0f;
-            viewport.maxDepth = 1.0f;
-            vkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
-
-            VkRect2D scissor = {};
-            scissor.offset = {0, 0};
-            scissor.extent = g_vkDevice.swapchainExtent;
-            vkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
-
-            g_vkDraw.inRenderPass = qtrue;
-        }
+        // Clear upload flag
+        vkImg->needsUpload = qfalse;
     }
 }
 

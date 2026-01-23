@@ -25,6 +25,7 @@ struct vkCircularBuffer_t {
     uint32_t currentOffset;
     uint32_t nextOffset;
     uint32_t frameOffset[VK_MAX_FRAMES_IN_FLIGHT];  // Per-frame regions
+    VkBufferUsageFlags usage;  // To determine alignment requirements
 };
 
 //----------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 //----------------------------------------------------------------------------
 
 // Vertex inputs
-layout(location = 0) in vec4 inPosition;
+layout(location = 0) in vec3 inPosition;  // Changed from vec4 to vec3
 layout(location = 1) in vec2 inTexCoord;
 layout(location = 2) in vec4 inColor;
 
@@ -23,8 +23,8 @@ layout(location = 1) out vec4 fragColor;
 layout(location = 2) out vec4 fragViewPos;
 
 void main() {
-    // Transform to view space
-    fragViewPos = viewVS.modelView * inPosition;
+    // Transform to view space - explicitly set w=1.0 like D3D11 does
+    fragViewPos = viewVS.modelView * vec4(inPosition, 1.0);
 
     // Transform to clip space
     gl_Position = viewVS.projection * fragViewPos;

@@ -23,6 +23,9 @@ struct vkImage_t {
     VkBuffer stagingBuffer;
     VmaAllocation stagingAllocation;
     void* stagingMappedData;
+
+    // Deferred upload tracking (for cinematic textures)
+    qboolean needsUpload;
 };
 
 //----------------------------------------------------------------------------
@@ -56,6 +59,9 @@ void VK_DestroyAllImages();
 
 // Update dynamic image (cinematics)
 void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int rows, qboolean dirty);
+
+// Upload pending dynamic images (call at frame start)
+void VK_UploadPendingImages();
 
 // Get image format
 imageFormat_t VK_GetImageFormatInternal(const image_t* image);

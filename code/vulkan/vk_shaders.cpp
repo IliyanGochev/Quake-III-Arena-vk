@@ -68,18 +68,30 @@ void VK_LoadAllShaders() {
     // Load single-texture shaders
     g_vkShaderModules.modules[VK_SHADER_SINGLE_TEXTURE][0] = VK_LoadShaderModule("genericst_vs.spv");
     g_vkShaderModules.modules[VK_SHADER_SINGLE_TEXTURE][1] = VK_LoadShaderModule("genericst_ps.spv");
+    ri.Printf(PRINT_ALL, "  SINGLE_TEXTURE: vs=%p, ps=%p\n",
+              g_vkShaderModules.modules[VK_SHADER_SINGLE_TEXTURE][0],
+              g_vkShaderModules.modules[VK_SHADER_SINGLE_TEXTURE][1]);
 
     // Load multi-texture shaders
     g_vkShaderModules.modules[VK_SHADER_MULTI_TEXTURE][0] = VK_LoadShaderModule("genericmt_vs.spv");
     g_vkShaderModules.modules[VK_SHADER_MULTI_TEXTURE][1] = VK_LoadShaderModule("genericmt_ps.spv");
+    ri.Printf(PRINT_ALL, "  MULTI_TEXTURE: vs=%p, ps=%p\n",
+              g_vkShaderModules.modules[VK_SHADER_MULTI_TEXTURE][0],
+              g_vkShaderModules.modules[VK_SHADER_MULTI_TEXTURE][1]);
 
     // Load skybox shaders
     g_vkShaderModules.modules[VK_SHADER_SKYBOX][0] = VK_LoadShaderModule("skybox_vs.spv");
     g_vkShaderModules.modules[VK_SHADER_SKYBOX][1] = VK_LoadShaderModule("skybox_ps.spv");
+    ri.Printf(PRINT_ALL, "  SKYBOX: vs=%p, ps=%p\n",
+              g_vkShaderModules.modules[VK_SHADER_SKYBOX][0],
+              g_vkShaderModules.modules[VK_SHADER_SKYBOX][1]);
 
     // Load fullscreen quad / 2D shaders
     g_vkShaderModules.modules[VK_SHADER_FSQ][0] = VK_LoadShaderModule("fsq_vs.spv");
     g_vkShaderModules.modules[VK_SHADER_FSQ][1] = VK_LoadShaderModule("fsq_ps.spv");
+    ri.Printf(PRINT_ALL, "  FSQ: vs=%p, ps=%p\n",
+              g_vkShaderModules.modules[VK_SHADER_FSQ][0],
+              g_vkShaderModules.modules[VK_SHADER_FSQ][1]);
 
     // Verify all shaders loaded successfully
     int loadedCount = 0;
@@ -125,7 +137,19 @@ VkShaderModule VK_GetShaderModule(vkShaderType_t shaderType, VkShaderStageFlagBi
     }
 
     int stageIndex = (stage == VK_SHADER_STAGE_VERTEX_BIT) ? 0 : 1;
-    return g_vkShaderModules.modules[shaderType][stageIndex];
+    VkShaderModule module = g_vkShaderModules.modules[shaderType][stageIndex];
+
+    // DEBUG: Log shader module retrieval (first 20 calls only)
+    static int getLogCount = 0;
+    if (getLogCount < 20) {
+        ri.Printf(PRINT_ALL, "VK_GetShaderModule: type=%d, stage=%s -> module=%p\n",
+                  shaderType,
+                  (stage == VK_SHADER_STAGE_VERTEX_BIT) ? "VERT" : "FRAG",
+                  module);
+        getLogCount++;
+    }
+
+    return module;
 }
 
 //----------------------------------------------------------------------------

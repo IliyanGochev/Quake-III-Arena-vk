@@ -14,6 +14,7 @@ vkDrawState_t g_vkDraw;
 //----------------------------------------------------------------------------
 void VK_CreateCircularBuffer(vkCircularBuffer_t* buf, uint32_t size, VkBufferUsageFlags usage) {
     buf->size = size;
+    buf->usage = usage;  // Store usage for alignment checks
 
     // Create buffer
     VkBufferCreateInfo bufferInfo = {};
@@ -68,21 +69,26 @@ void VK_ResetCircularBuffer(vkCircularBuffer_t* buf, uint32_t frameIndex) {
 // Update circular buffer (allocate space and copy data)
 //----------------------------------------------------------------------------
 void VK_UpdateCircularBuffer(vkCircularBuffer_t* buf, const void* data, uint32_t dataSize) {
-    // Align to 16 bytes
-    uint32_t alignedSize = (dataSize + 15) & ~15;
+    // Determine alignment based on buffer usage
+    // Uniform buffers require 256-byte alignment per Vulkan spec
+    uint32_t alignment = (buf->usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) ? 256 : 16;
+    uint32_t alignedSize = (dataSize + alignment - 1) & ~(alignment - 1);
 
     uint32_t frameIndex = g_vkDraw.currentFrame;
     uint32_t frameStart = buf->frameOffset[frameIndex];
     uint32_t frameEnd = buf->frameOffset[(frameIndex + 1) % VK_MAX_FRAMES_IN_FLIGHT];
 
+    // Align the current offset as well (important for uniform buffers)
+    uint32_t alignedNextOffset = (buf->nextOffset + alignment - 1) & ~(alignment - 1);
+
     // Check if we would overflow current frame's region
-    if (buf->nextOffset + alignedSize > frameEnd) {
-        // Wrap to start of this frame's region
+    if (alignedNextOffset + alignedSize > frameEnd) {
+        // Wrap to start of this frame's region (already aligned)
         buf->currentOffset = frameStart;
         buf->nextOffset = frameStart + alignedSize;
     } else {
-        buf->currentOffset = buf->nextOffset;
-        buf->nextOffset += alignedSize;
+        buf->currentOffset = alignedNextOffset;
+        buf->nextOffset = alignedNextOffset + alignedSize;
     }
 
     // Copy data
@@ -416,6 +422,10 @@ void VK_BeginFrame() {
         ri.Error(ERR_FATAL, "Failed to acquire swapchain image: 0x%08X\n", result);
     }
 
+    // Upload pending dynamic images (cinematics) BEFORE starting render pass
+    // This ensures texture updates don't interrupt the render pass mid-frame
+    VK_UploadPendingImages();
+
     // Reset and begin command buffer
     VK_CHECK(vkResetCommandBuffer(frame->commandBuffer, 0));
     VkCommandBufferBeginInfo beginInfo = {};
@@ -458,14 +468,22 @@ void VK_BeginFrame() {
 
     vkCmdBeginRenderPass(frame->commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Set dynamic viewport
+    // Set dynamic viewport with negative height for Y-flip
     VkViewport viewport = {};
     viewport.x = 0.0f;
-    viewport.y = (float)g_vkDevice.swapchainExtent.height;
+    viewport.y = (float)g_vkDevice.swapchainExtent.height;  // Bottom edge
     viewport.width = (float)g_vkDevice.swapchainExtent.width;
-    viewport.height = -(float)g_vkDevice.swapchainExtent.height;  // Negative height for Vulkan 1.1
+    viewport.height = -(float)g_vkDevice.swapchainExtent.height;  // Negative to flip Y
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
+
+    static int beginFrameLogCount = 0;
+    if (beginFrameLogCount < 3) {
+        ri.Printf(PRINT_ALL, "VK_BeginFrame: setting viewport to swapchainExtent %dx%d (vp: x=%.0f, y=%.0f, w=%.0f, h=%.0f)\n",
+                  g_vkDevice.swapchainExtent.width, g_vkDevice.swapchainExtent.height,
+                  viewport.x, viewport.y, viewport.width, viewport.height);
+        beginFrameLogCount++;
+    }
 
     vkCmdSetViewport(frame->commandBuffer, 0, 1, &viewport);
 
@@ -510,7 +528,7 @@ extern "C" void VK_EndFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &frame->commandBuffer;
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &frame->renderFinished;
+    submitInfo.pSignalSemaphores = &frame->renderFinished; 
 
     VkResult submitResult = vkQueueSubmit(g_vkDevice.graphicsQueue, 1, &submitInfo, frame->renderFence);
     if (submitResult != VK_SUCCESS) {

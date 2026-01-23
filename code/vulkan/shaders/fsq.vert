@@ -21,9 +21,12 @@ layout(set = 0, binding = 0) uniform ViewVS {
 layout(location = 0) out vec2 fragTexCoord;
 
 void main() {
-    // Use real input positions and apply projection matrix
-    vec4 pos = vec4(inPosition, 0.0, 1.0);
-    gl_Position = viewVS.projection * pos;
+    // Match D3D11: Apply modelView then projection
+    vec4 viewPos = viewVS.modelView * vec4(inPosition, 0.0, 1.0);
+    vec4 sPos = viewVS.projection * viewPos;
+
+    // Match D3D11: Override Z and W to ensure 2D elements aren't clipped
+    gl_Position = vec4(sPos.xy, 0.0, 1.0);
 
     // Pass through texture coordinates
     fragTexCoord = inTexCoord;

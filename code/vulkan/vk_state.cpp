@@ -223,14 +223,15 @@ void VK_GetVertexInputState(vkShaderType_t shaderType,
         bindings.resize(3);
         attributes.resize(3);
 
-        // Binding 0: Position (vec4)
+        // Binding 0: Position (vec3 from vec4 buffer)
+        // Note: Buffer contains vec4 but we only read first 3 components
         bindings[0].binding = 0;
-        bindings[0].stride = sizeof(float) * 4;
+        bindings[0].stride = sizeof(float) * 4;  // Buffer stride is still vec4
         bindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
         attributes[0].location = 0;
         attributes[0].binding = 0;
-        attributes[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;  // Changed to vec3
         attributes[0].offset = 0;
 
         // Binding 1: TexCoord (vec2)
@@ -258,14 +259,15 @@ void VK_GetVertexInputState(vkShaderType_t shaderType,
         bindings.resize(4);
         attributes.resize(4);
 
-        // Binding 0: Position (vec4)
+        // Binding 0: Position (vec3 from vec4 buffer)
+        // Note: Buffer contains vec4 but we only read first 3 components
         bindings[0].binding = 0;
-        bindings[0].stride = sizeof(float) * 4;
+        bindings[0].stride = sizeof(float) * 4;  // Buffer stride is still vec4
         bindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
         attributes[0].location = 0;
         attributes[0].binding = 0;
-        attributes[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;  // Changed to vec3
         attributes[0].offset = 0;
 
         // Binding 1: TexCoord0 (vec2)
@@ -490,6 +492,13 @@ void VK_MapRasterState(int cullMode, unsigned long stateMask, VkPipelineRasteriz
 VkPipeline VK_CreatePipeline(const vkPipelineKey_t& key) {
     vkShaderType_t shaderType = (vkShaderType_t)key.shaderType;
 
+    // DEBUG: Log pipeline creation
+    static int createLogCount = 0;
+    if (createLogCount < 10) {
+        ri.Printf(PRINT_ALL, "VK_CreatePipeline: Creating pipeline for shaderType=%d\n", shaderType);
+        createLogCount++;
+    }
+
     // Get shader modules
     VkShaderModule vertShader = VK_GetShaderModule(shaderType, VK_SHADER_STAGE_VERTEX_BIT);
     VkShaderModule fragShader = VK_GetShaderModule(shaderType, VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -497,6 +506,11 @@ VkPipeline VK_CreatePipeline(const vkPipelineKey_t& key) {
     if (vertShader == VK_NULL_HANDLE || fragShader == VK_NULL_HANDLE) {
         ri.Printf(PRINT_WARNING, "WARNING: Missing shader modules for shader type %d\n", shaderType);
         return VK_NULL_HANDLE;
+    }
+
+    // DEBUG: Log shader module handles
+    if (createLogCount <= 10) {
+        ri.Printf(PRINT_ALL, "  -> vertShader=%p, fragShader=%p\n", vertShader, fragShader);
     }
 
     // Shader stages
