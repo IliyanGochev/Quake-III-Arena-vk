@@ -450,7 +450,7 @@ void VK_MapDepthState(unsigned long stateMask, VkPipelineDepthStencilStateCreate
 //----------------------------------------------------------------------------
 void VK_MapRasterState(int cullMode, unsigned long stateMask, VkPipelineRasterizationStateCreateInfo* rasterState) {
     rasterState->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterState->depthClampEnable = VK_FALSE;
+    rasterState->depthClampEnable = VK_TRUE;  // Clamp depth instead of clipping
     rasterState->rasterizerDiscardEnable = VK_FALSE;
 
     // Polygon mode (wireframe for debug)

@@ -451,6 +451,7 @@ void VK_CreateLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.fillModeNonSolid = VK_TRUE;  // For wireframe mode
+    deviceFeatures.depthClamp = VK_TRUE;  // Clamp depth values instead of clipping
 
     // Create logical device
     VkDeviceCreateInfo createInfo = {};

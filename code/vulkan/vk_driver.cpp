@@ -606,6 +606,9 @@ void VK_ResetState2D(void) {
     // Set model-view matrix to identity for 2D rendering (same as D3D11)
     memcpy(g_vkRunState.modelViewMatrix, s_identityMatrix, sizeof(float) * 16);
     g_vkRunState.viewVSDirty = qtrue;
+
+    // Reset depth range for 2D rendering (matches D3D11 line 165)
+    VK_SetDepthRange(0, 0);
 }
 
 //----------------------------------------------------------------------------
@@ -614,6 +617,9 @@ void VK_ResetState2D(void) {
 void VK_ResetState3D(void) {
     g_vkRunState.stateMask = GLS_DEPTHMASK_TRUE | GLS_DEPTHTEST_DISABLE;
     g_vkRunState.cullMode = CT_FRONT_SIDED;
+
+    // Reset depth range for 3D rendering (matches D3D11 line 172)
+    VK_SetDepthRange(0, 1);
 }
 
 //----------------------------------------------------------------------------
@@ -750,7 +756,15 @@ void VK_DrawStageGeneric(const shaderCommands_t* input) {
         key.shaderType = shaderType;
         key.blendSrc = pStage->stateBits & GLS_SRCBLEND_BITS;
         key.blendDst = pStage->stateBits & GLS_DSTBLEND_BITS;
-        key.depthFlags = pStage->stateBits & (GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_TRUE | GLS_DEPTHFUNC_EQUAL);
+
+        // For 2D rendering, use global state (from VK_ResetState2D) for depth flags
+        // For 3D rendering, use per-stage state
+        if (backEnd.projection2D) {
+            key.depthFlags = g_vkRunState.stateMask & (GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_TRUE | GLS_DEPTHFUNC_EQUAL);
+        } else {
+            key.depthFlags = pStage->stateBits & (GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_TRUE | GLS_DEPTHFUNC_EQUAL);
+        }
+
         key.cullMode = input->shader->cullType;
         key.polygonMode = 0;  // Fill mode
         key.sampleCount = g_vkDevice.msaaSamples;

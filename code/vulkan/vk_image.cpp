@@ -30,10 +30,9 @@ void VK_ShutdownImages() {
 
         if (vkImg->image != VK_NULL_HANDLE) {
             // Destroy staging buffer if exists
+            // Note: Don't call vmaUnmapMemory - staging buffers use VMA_ALLOCATION_CREATE_MAPPED_BIT
+            // which creates an automatic "0-th" mapping that VMA unmaps automatically during destroy
             if (vkImg->stagingBuffer != VK_NULL_HANDLE) {
-                if (vkImg->stagingMappedData != nullptr) {
-                    vmaUnmapMemory(g_vkDevice.allocator, vkImg->stagingAllocation);
-                }
                 vmaDestroyBuffer(g_vkDevice.allocator, vkImg->stagingBuffer, vkImg->stagingAllocation);
             }
 
@@ -594,12 +593,10 @@ void VK_DeleteImageInternal(const image_t* image) {
     // Note: Caller is responsible for ensuring GPU has finished using this image
     // (via VK_EndFrame() + VK_FlushGPU() or similar synchronization)
 
-    // Destroy staging buffer if exists (only dynamic images have persistent staging buffers)
+    // Destroy staging buffer if exists
+    // Note: Don't call vmaUnmapMemory - staging buffers use VMA_ALLOCATION_CREATE_MAPPED_BIT
+    // which creates an automatic "0-th" mapping that VMA unmaps automatically during destroy
     if (vkImg->stagingBuffer != VK_NULL_HANDLE) {
-        // Only unmap if it was persistently mapped (dynamic images only)
-        if (vkImg->dynamic && vkImg->stagingMappedData != nullptr) {
-            vmaUnmapMemory(g_vkDevice.allocator, vkImg->stagingAllocation);
-        }
         vmaDestroyBuffer(g_vkDevice.allocator, vkImg->stagingBuffer, vkImg->stagingAllocation);
     }
 
@@ -632,13 +629,10 @@ void VK_DestroyAllImages() {
     int destroyedCount = 0;
     for (int i = 0; i < VK_MAX_IMAGES; i++) {
         if (g_vkImages[i].image != VK_NULL_HANDLE) {
-            // Destroy staging buffer if exists (only dynamic images have persistent staging buffers)
+            // Destroy staging buffer if exists
+            // Note: Don't call vmaUnmapMemory - staging buffers use VMA_ALLOCATION_CREATE_MAPPED_BIT
+            // which creates an automatic "0-th" mapping that VMA unmaps automatically during destroy
             if (g_vkImages[i].stagingBuffer != VK_NULL_HANDLE) {
-                // Only unmap if it was persistently mapped (dynamic images only)
-                if (g_vkImages[i].dynamic && g_vkImages[i].stagingMappedData != nullptr) {
-                    vmaUnmapMemory(g_vkDevice.allocator, g_vkImages[i].stagingAllocation);
-                    g_vkImages[i].stagingMappedData = nullptr;
-                }
                 vmaDestroyBuffer(g_vkDevice.allocator, g_vkImages[i].stagingBuffer, g_vkImages[i].stagingAllocation);
                 g_vkImages[i].stagingBuffer = VK_NULL_HANDLE;
             }
@@ -695,10 +689,9 @@ void VK_UpdateDynamicImage(const image_t* image, const byte* pic, int cols, int 
 
         // Destroy old image resources (GPU is idle, safe to destroy)
         // Also destroy the old descriptor set - DON'T reuse it (would invalidate command buffers)
+        // Note: Don't call vmaUnmapMemory - staging buffers use VMA_ALLOCATION_CREATE_MAPPED_BIT
+        // which creates an automatic "0-th" mapping that VMA unmaps automatically during destroy
         if (vkImg->stagingBuffer != VK_NULL_HANDLE) {
-            if (vkImg->stagingMappedData != nullptr) {
-                vmaUnmapMemory(g_vkDevice.allocator, vkImg->stagingAllocation);
-            }
             vmaDestroyBuffer(g_vkDevice.allocator, vkImg->stagingBuffer, vkImg->stagingAllocation);
         }
         if (vkImg->sampler != VK_NULL_HANDLE) {
