@@ -37,12 +37,6 @@ void VK_CreateCircularBuffer(vkCircularBuffer_t* buf, uint32_t size, VkBufferUsa
     // Initialize offsets
     buf->currentOffset = 0;
     buf->nextOffset = 0;
-
-    // Divide buffer into per-frame regions
-    uint32_t sizePerFrame = size / VK_MAX_FRAMES_IN_FLIGHT;
-    for (int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++) {
-        buf->frameOffset[i] = i * sizePerFrame;
-    }
 }
 
 //----------------------------------------------------------------------------
@@ -60,9 +54,9 @@ void VK_DestroyCircularBuffer(vkCircularBuffer_t* buf) {
 // Reset circular buffer for new frame
 //----------------------------------------------------------------------------
 void VK_ResetCircularBuffer(vkCircularBuffer_t* buf, uint32_t frameIndex) {
-    // Reset to start of this frame's region
-    buf->currentOffset = buf->frameOffset[frameIndex];
-    buf->nextOffset = buf->currentOffset;
+    // Reset to beginning - fence ensures previous use is complete
+    buf->currentOffset = 0;
+    buf->nextOffset = 0;
 }
 
 //----------------------------------------------------------------------------
@@ -72,20 +66,16 @@ void VK_UpdateCircularBuffer(vkCircularBuffer_t* buf, const void* data, uint32_t
     // Determine alignment based on buffer usage
     // Uniform buffers require 256-byte alignment per Vulkan spec
     uint32_t alignment = (buf->usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) ? 256 : 16;
+
+    // Align offsets
+    uint32_t alignedNextOffset = (buf->nextOffset + alignment - 1) & ~(alignment - 1);
     uint32_t alignedSize = (dataSize + alignment - 1) & ~(alignment - 1);
 
-    uint32_t frameIndex = g_vkDraw.currentFrame;
-    uint32_t frameStart = buf->frameOffset[frameIndex];
-    uint32_t frameEnd = buf->frameOffset[(frameIndex + 1) % VK_MAX_FRAMES_IN_FLIGHT];
-
-    // Align the current offset as well (important for uniform buffers)
-    uint32_t alignedNextOffset = (buf->nextOffset + alignment - 1) & ~(alignment - 1);
-
-    // Check if we would overflow current frame's region
-    if (alignedNextOffset + alignedSize > frameEnd) {
-        // Wrap to start of this frame's region (already aligned)
-        buf->currentOffset = frameStart;
-        buf->nextOffset = frameStart + alignedSize;
+    // Simple wrap condition (like D3D11)
+    if (alignedNextOffset + alignedSize > buf->size) {
+        // Wrap to start of buffer
+        buf->currentOffset = 0;
+        buf->nextOffset = alignedSize;
     } else {
         buf->currentOffset = alignedNextOffset;
         buf->nextOffset = alignedNextOffset + alignedSize;
