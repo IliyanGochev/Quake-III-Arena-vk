@@ -450,12 +450,22 @@ void VK_BeginFrame() {
     }
 
     // Begin render pass
-    VkClearValue clearValues[3];
-    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};  // MSAA color or main color
-    clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}};  // Resolve (MSAA) or unused (no MSAA)
-    clearValues[2].depthStencil = {1.0f, 0};             // Depth
-
     qboolean msaaEnabled = (g_vkDevice.msaaSamples > VK_SAMPLE_COUNT_1_BIT) ? qtrue : qfalse;
+
+    VkClearValue clearValues[3];
+    // Clear with alpha = 1.0 to keep window opaque (swapchain has alpha channel)
+    // Color write mask excludes alpha, so it will stay at 1.0 throughout the frame
+
+    if (msaaEnabled) {
+        // MSAA: 3 attachments (MSAA color, resolve, depth)
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};     // MSAA color buffer
+        clearValues[1].color = {{0.0f, 0.0f, 0.0f, 1.0f}};     // Resolve target (swapchain)
+        clearValues[2].depthStencil = {1.0f, 0};                // Depth/stencil
+    } else {
+        // Non-MSAA: 2 attachments (color, depth)
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};     // Color buffer (swapchain)
+        clearValues[1].depthStencil = {1.0f, 0};                // Depth/stencil (CRITICAL FIX!)
+    }
 
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -493,6 +503,10 @@ void VK_BeginFrame() {
     scissor.extent = g_vkDevice.swapchainExtent;
 
     vkCmdSetScissor(frame->commandBuffer, 0, 1, &scissor);
+
+    // Set dynamic depth bias (declared as dynamic state in pipeline)
+    // Since we're not using polygon offset, set all values to 0
+    vkCmdSetDepthBias(frame->commandBuffer, 0.0f, 0.0f, 0.0f);
 
     g_vkDraw.inRenderPass = qtrue;
 }
@@ -647,22 +661,179 @@ void VK_UpdateTessBuffers(const shaderCommands_t* input, qboolean needDlights, q
         }
     }
 
-    // TODO: Update dynamic light buffers if needDlights
-    // TODO: Update fog buffers if needFog
+    // Update dynamic light buffers if needed
+    if (needDlights) {
+        for (int l = 0; l < input->dlightCount; ++l) {
+            const dlightProjectionInfo_t* cpuLight = &input->dlightInfo[l];
+            vkTessLightProjBuffers_t* gpuLight = &g_vkDraw.tessBuffers.dlights[l];
+
+            if (!cpuLight->numIndexes) {
+                continue;
+            }
+
+            // Update light index buffer
+            uint32_t lightIndexSize = sizeof(glIndex_t) * cpuLight->numIndexes;
+            VK_UpdateCircularBuffer(&gpuLight->indexes, cpuLight->hitIndexes, lightIndexSize);
+
+            // Update light color buffer
+            uint32_t lightColorSize = sizeof(byte) * 4 * input->numVertexes;
+            VK_UpdateCircularBuffer(&gpuLight->colors, cpuLight->colorArray, lightColorSize);
+
+            // Update light texture coordinate buffer
+            uint32_t lightTexCoordSize = sizeof(float) * 2 * input->numVertexes;
+            VK_UpdateCircularBuffer(&gpuLight->texCoords, cpuLight->texCoordsArray, lightTexCoordSize);
+        }
+    }
+
+    // Update fog buffers if needed
+    if (needFog) {
+        uint32_t fogColorSize = sizeof(color4ub_t) * input->numVertexes;
+        VK_UpdateCircularBuffer(&g_vkDraw.tessBuffers.fog.colors, input->fogVars.colors, fogColorSize);
+
+        uint32_t fogTexCoordSize = sizeof(vec2_t) * input->numVertexes;
+        VK_UpdateCircularBuffer(&g_vkDraw.tessBuffers.fog.texCoords, input->fogVars.texcoords, fogTexCoordSize);
+    }
 }
 
 //----------------------------------------------------------------------------
 // Draw dynamic lights
 //----------------------------------------------------------------------------
 void VK_DrawDynamicLights(const shaderCommands_t* input) {
-    // TODO: Implement dynamic lighting pass
-    // For now, skip dynamic lights
+    if (!input || input->dlightCount == 0) {
+        return;
+    }
+
+    VkCommandBuffer cmd = VK_GetCurrentCommandBuffer();
+
+    // Get dlight texture
+    vkImage_t* dlightTex = VK_GetImage(tr.dlightImage);
+    if (!dlightTex || dlightTex->image == VK_NULL_HANDLE || dlightTex->descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Build pipeline key for single-texture rendering
+    vkPipelineKey_t key = {};
+    key.shaderType = VK_SHADER_SINGLE_TEXTURE;
+    key.cullMode = input->shader->cullType;
+    key.polygonMode = 0;
+    key.sampleCount = g_vkDevice.msaaSamples;
+
+    // Bind descriptor set 2 (texture) - dlight texture
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           g_vkPipelines.pipelineLayout, 2, 1,
+                           &dlightTex->descriptorSet, 0, nullptr);
+
+    // Draw each dynamic light
+    for (int l = 0; l < input->dlightCount; l++) {
+        const dlightProjectionInfo_t* dlInfo = &input->dlightInfo[l];
+        if (!dlInfo->numIndexes) {
+            continue;
+        }
+
+        vkTessLightProjBuffers_t* projBuf = &g_vkDraw.tessBuffers.dlights[l];
+
+        // Select blend mode
+        if (dlInfo->additive) {
+            key.blendSrc = GLS_SRCBLEND_ONE;
+            key.blendDst = GLS_DSTBLEND_ONE;
+            key.depthFlags = GLS_DEPTHFUNC_EQUAL;
+        } else {
+            key.blendSrc = GLS_SRCBLEND_DST_COLOR;
+            key.blendDst = GLS_DSTBLEND_ONE;
+            key.depthFlags = GLS_DEPTHFUNC_EQUAL;
+        }
+
+        // Get or create pipeline with the current blend state
+        VkPipeline pipeline = VK_GetOrCreatePipeline(key);
+        if (pipeline == VK_NULL_HANDLE) {
+            continue;
+        }
+
+        // Bind pipeline
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+        // Bind light-specific index buffer
+        vkCmdBindIndexBuffer(cmd, projBuf->indexes.buffer, projBuf->indexes.currentOffset, VK_INDEX_TYPE_UINT16);
+
+        // Bind light-specific vertex buffers
+        // Binding 1: Light texture coordinates
+        VkBuffer texCoordBuffer = projBuf->texCoords.buffer;
+        VkDeviceSize texCoordOffset = projBuf->texCoords.currentOffset;
+        vkCmdBindVertexBuffers(cmd, 1, 1, &texCoordBuffer, &texCoordOffset);
+
+        // Binding 3: Light colors
+        VkBuffer colorBuffer = projBuf->colors.buffer;
+        VkDeviceSize colorOffset = projBuf->colors.currentOffset;
+        vkCmdBindVertexBuffers(cmd, 3, 1, &colorBuffer, &colorOffset);
+
+        // Draw the dynamic light
+        vkCmdDrawIndexed(cmd, dlInfo->numIndexes, 1, 0, 0, 0);
+    }
 }
 
 //----------------------------------------------------------------------------
 // Draw fog pass
 //----------------------------------------------------------------------------
 void VK_DrawFog(const shaderCommands_t* input) {
-    // TODO: Implement fog pass
-    // For now, skip fog
+    if (!input || !input->fogNum || !input->shader->fogPass) {
+        return;
+    }
+
+    VkCommandBuffer cmd = VK_GetCurrentCommandBuffer();
+
+    // Get fog texture
+    vkImage_t* fogTex = VK_GetImage(tr.fogImage);
+    if (!fogTex || fogTex->image == VK_NULL_HANDLE || fogTex->descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Build pipeline key for single-texture fog rendering
+    vkPipelineKey_t key = {};
+    key.shaderType = VK_SHADER_SINGLE_TEXTURE;
+    key.cullMode = input->shader->cullType;
+    key.polygonMode = 0;
+    key.sampleCount = g_vkDevice.msaaSamples;
+
+    // Set blend mode for fog
+    if (input->shader->fogPass == FP_EQUAL) {
+        key.blendSrc = GLS_SRCBLEND_SRC_ALPHA;
+        key.blendDst = GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+        key.depthFlags = GLS_DEPTHFUNC_EQUAL;
+    } else {
+        key.blendSrc = GLS_SRCBLEND_SRC_ALPHA;
+        key.blendDst = GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+        key.depthFlags = 0;  // Normal depth test
+    }
+
+    // Get or create pipeline
+    VkPipeline pipeline = VK_GetOrCreatePipeline(key);
+    if (pipeline == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Bind pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    // Bind index buffer (use main index buffer)
+    vkCmdBindIndexBuffer(cmd, g_vkDraw.tessBuffers.indexes.buffer,
+                        g_vkDraw.tessBuffers.indexes.currentOffset, VK_INDEX_TYPE_UINT16);
+
+    // Bind fog vertex buffers
+    // Binding 1: Fog texture coordinates
+    VkBuffer texCoordBuffer = g_vkDraw.tessBuffers.fog.texCoords.buffer;
+    VkDeviceSize texCoordOffset = g_vkDraw.tessBuffers.fog.texCoords.currentOffset;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &texCoordBuffer, &texCoordOffset);
+
+    // Binding 3: Fog colors
+    VkBuffer colorBuffer = g_vkDraw.tessBuffers.fog.colors.buffer;
+    VkDeviceSize colorOffset = g_vkDraw.tessBuffers.fog.colors.currentOffset;
+    vkCmdBindVertexBuffers(cmd, 3, 1, &colorBuffer, &colorOffset);
+
+    // Bind descriptor set 2 (texture) - fog texture
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           g_vkPipelines.pipelineLayout, 2, 1,
+                           &fogTex->descriptorSet, 0, nullptr);
+
+    // Draw the fog
+    vkCmdDrawIndexed(cmd, input->numIndexes, 1, 0, 0, 0);
 }

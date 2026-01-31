@@ -27,3 +27,5 @@ baseq3/maps/autosave.map
 *.vs
 *.spv
 *.cso
+
+*.tga

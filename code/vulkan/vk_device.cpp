@@ -112,6 +112,7 @@ void VK_CreateInstance() {
     // Enable validation layers if requested
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
     if (enableValidationLayers) {
+#ifdef _DEBUG
         createInfo.enabledLayerCount = validationLayerCount;
         createInfo.ppEnabledLayerNames = validationLayers;
 
@@ -127,6 +128,7 @@ void VK_CreateInstance() {
         debugCreateInfo.pfnUserCallback = DebugCallback;
 
         createInfo.pNext = &debugCreateInfo;
+#endif
     } else {
         createInfo.enabledLayerCount = 0;
         createInfo.pNext = nullptr;
@@ -464,8 +466,10 @@ void VK_CreateLogicalDevice() {
 
     // Validation layers (deprecated for devices, but for compatibility)
     if (enableValidationLayers) {
+#ifdef _DEBUG
         createInfo.enabledLayerCount = validationLayerCount;
         createInfo.ppEnabledLayerNames = validationLayers;
+#endif
     } else {
         createInfo.enabledLayerCount = 0;
     }

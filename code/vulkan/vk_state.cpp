@@ -301,29 +301,26 @@ void VK_GetVertexInputState(vkShaderType_t shaderType,
         attributes[3].offset = 0;
     }
     else if (shaderType == VK_SHADER_SKYBOX) {
-        // Skybox: 2 bindings (position, texcoord)
-        bindings.resize(2);
+        // Skybox: 1 binding with interleaved position+texcoord (like D3D11)
+        bindings.resize(1);
         attributes.resize(2);
 
-        // Binding 0: Position (vec3)
+        // Binding 0: Interleaved vertex data (position vec3 + texcoord vec2)
         bindings[0].binding = 0;
-        bindings[0].stride = sizeof(float) * 3;
+        bindings[0].stride = sizeof(float) * 5;  // 3 floats for position + 2 floats for texcoord
         bindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
+        // Attribute 0: Position (vec3)
         attributes[0].location = 0;
         attributes[0].binding = 0;
         attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributes[0].offset = 0;
 
-        // Binding 1: TexCoord (vec2)
-        bindings[1].binding = 1;
-        bindings[1].stride = sizeof(float) * 2;
-        bindings[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
+        // Attribute 1: TexCoord (vec2)
         attributes[1].location = 1;
-        attributes[1].binding = 1;
+        attributes[1].binding = 0;
         attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-        attributes[1].offset = 0;
+        attributes[1].offset = sizeof(float) * 3;  // After position (3 floats)
     }
     else if (shaderType == VK_SHADER_FSQ) {
         // Fullscreen quad / 2D: 2 bindings (position2D, texcoord)
@@ -375,8 +372,9 @@ void VK_MapBlendState(unsigned long stateMask, VkPipelineColorBlendAttachmentSta
         blendState->srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         blendState->dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         blendState->alphaBlendOp = VK_BLEND_OP_ADD;
+        // Exclude alpha channel to prevent blending issues with UI rendering
         blendState->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                      VK_COLOR_COMPONENT_B_BIT;
         return;
     }
 
@@ -416,8 +414,9 @@ void VK_MapBlendState(unsigned long stateMask, VkPipelineColorBlendAttachmentSta
 
     blendState->colorBlendOp = VK_BLEND_OP_ADD;
     blendState->alphaBlendOp = VK_BLEND_OP_ADD;
+    // Exclude alpha channel to prevent blending issues with UI rendering
     blendState->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                  VK_COLOR_COMPONENT_B_BIT;
 }
 
 //----------------------------------------------------------------------------

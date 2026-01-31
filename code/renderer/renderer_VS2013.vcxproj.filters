@@ -376,6 +376,30 @@
     <ClCompile Include="tr_smp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\vulkan\vk_device.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_driver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_image.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_mem_alloc_impl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_shaders.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\vulkan\vk_state.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\win32\win_vk.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tr_public.h">
@@ -479,6 +503,36 @@
     </ClInclude>
     <ClInclude Include="..\d3d11\d3d_device.h">
       <Filter>Direct3D Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_common.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_device.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_draw.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_drawdata.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_driver.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_image.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_mem_alloc.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_shaders.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\vulkan\vk_state.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\win32\win_vk.h">
+      <Filter>Public Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

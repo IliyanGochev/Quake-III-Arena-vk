@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Never try to compile the code**
 
+**Do not touch code outside the vulkan driver implementation unless you're explicitly allowed to! You need to provide justification for the changes**
+
 ## Overview
 
 This is a Windows port of Quake III Arena that supports multiple rendering backends (OpenGL, Direct3D 11) on x86/x64 architectures. The port targets Windows Desktop (Win32) and Windows 8/RT with modern APIs: Direct3D 11.1/11.2, XAudio2, and XInput.

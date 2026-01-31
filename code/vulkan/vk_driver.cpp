@@ -136,8 +136,24 @@ void VK_DriverInit(void) {
 
     // Initialize runtime state
     memset(&g_vkRunState, 0, sizeof(g_vkRunState));
+
+    // Initialize matrices to identity (matches D3D11 lines 370-371)
+    memcpy(g_vkRunState.modelViewMatrix, s_identityMatrix, sizeof(float) * 16);
+    memcpy(g_vkRunState.projectionMatrix, s_identityMatrix, sizeof(float) * 16);
+
+    // Initialize depth range (matches D3D11 lines 372-373)
+    g_vkRunState.depthRange[0] = 0.0f;
+    g_vkRunState.depthRange[1] = 1.0f;
+
     g_vkRunState.viewVSDirty = qtrue;
     g_vkRunState.viewPSDirty = qtrue;
+
+    // Initialize alpha clip to default "no alpha test" state (matches D3D11)
+    g_vkRunState.alphaClip[0] = 1.0f;
+    g_vkRunState.alphaClip[1] = 0.0f;
+
+    // Initialize cull mode to -1 to force first state commit (matches D3D11 line 377)
+    g_vkRunState.cullMode = -1;
 
     ri.Printf(PRINT_ALL, "------- VK_DriverInit Complete -------\n");
 }
@@ -216,9 +232,8 @@ void VK_CreateImage(const image_t* image, const byte* pic, qboolean isLightmap) 
 //----------------------------------------------------------------------------
 void VK_DeleteImage(const image_t* image) {
     // Ensure GPU is not using the image before deleting
-    if (g_vkDraw.inRenderPass) {
-        VK_EndFrame();
-    }
+    // NOTE: Do NOT call VK_EndFrame() here as it would end the render pass mid-frame,
+    // causing the next draw to clear the framebuffer. Just flush the GPU instead.
     VK_FlushGPU();
     VK_DeleteImageInternal(image);
 }
@@ -234,13 +249,6 @@ void VK_UpdateCinematic(const image_t* image, const byte* pic, int cols, int row
 // Draw image (2D/UI)
 //----------------------------------------------------------------------------
 void VK_DrawImage(const image_t* image, const float* coords, const float* texcoords, const float* color) {
-    // DEBUG: Log first few calls
-    static int totalCallCount = 0;
-    if (totalCallCount < 10) {
-        ri.Printf(PRINT_ALL, "VK_DrawImage call #%d: image='%s'\n", totalCallCount, image ? image->imgName : "NULL");
-    }
-    totalCallCount++;
-
     if (!image) {
         return;
     }
@@ -250,16 +258,14 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
         return;
     }
 
-    // Log coordinates for first few draws to debug resolution issue
-    static int coordLogCount = 0;
-    if (coordLogCount < 5) {
-        ri.Printf(PRINT_ALL, "VK_DrawImage #%d: coords=[%.1f, %.1f, %.1f, %.1f] texcoords=[%.3f, %.3f, %.3f, %.3f]\n",
-                  coordLogCount,
+    // DEBUG: Log first few DrawImage calls to help diagnose double rendering
+    static int drawImageCallCount = 0;
+    if (drawImageCallCount < 10) {
+        ri.Printf(PRINT_ALL, "VK_DrawImage #%d: image='%s', coords=(%.1f,%.1f,%.1f,%.1f), inRenderPass=%d\n",
+                  drawImageCallCount, image->imgName,
                   coords[0], coords[1], coords[2], coords[3],
-                  texcoords[0], texcoords[1], texcoords[2], texcoords[3]);
-        ri.Printf(PRINT_ALL, "  -> image size: %dx%d, name: '%s'\n",
-                  image->width, image->height, image->imgName);
-        coordLogCount++;
+                  g_vkDraw.inRenderPass);
+        drawImageCallCount++;
     }
 
     // Lazy frame begin - start frame if not already started
@@ -269,19 +275,13 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
         // CRITICAL: Re-apply the viewport after BeginFrame
         // VK_BeginFrame sets viewport to swapchain size, but we need the
         // viewport that was set by Set2DProjection to match the orthographic projection
-        static int drawImageLogCount = 0;
-        if (drawImageLogCount < 3) {
-            ri.Printf(PRINT_ALL, "VK_DrawImage: Re-applying stored viewport: %dx%d at (%d,%d)\n",
-                      g_vkRunState.viewportWidth, g_vkRunState.viewportHeight,
-                      g_vkRunState.viewportX, g_vkRunState.viewportY);
-            drawImageLogCount++;
-        }
-
         if (g_vkRunState.viewportWidth > 0 && g_vkRunState.viewportHeight > 0) {
             VK_SetViewport(g_vkRunState.viewportX, g_vkRunState.viewportY,
                           g_vkRunState.viewportWidth, g_vkRunState.viewportHeight);
         } else {
-            ri.Printf(PRINT_WARNING, "VK_DrawImage: WARNING - viewport not set!\n");
+            // Fallback: viewport not set, use full screen
+            // This shouldn't happen but prevents undefined behavior
+            VK_SetViewport(0, 0, vdConfig.vidWidth, vdConfig.vidHeight);
         }
     }
 
@@ -300,32 +300,33 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
 
     // Set up vertex data (4 vertices for a quad, 2 triangles)
     // FSQ shader expects TWO separate buffers: positions and texcoords
+    // IMPORTANT: Match D3D11 vertex order exactly (d3d_draw.cpp:233-241)
     float positions[4][2];
     float texCoordsData[4][2];
 
-    // Bottom-left
+    // Vertex 0: Top-left (coords[0], coords[1])
     positions[0][0] = coords[0];
-    positions[0][1] = coords[3];
+    positions[0][1] = coords[1];
     texCoordsData[0][0] = texcoords[0];
-    texCoordsData[0][1] = texcoords[3];
+    texCoordsData[0][1] = texcoords[1];
 
-    // Bottom-right
+    // Vertex 1: Top-right (coords[2], coords[1])
     positions[1][0] = coords[2];
-    positions[1][1] = coords[3];
+    positions[1][1] = coords[1];
     texCoordsData[1][0] = texcoords[2];
-    texCoordsData[1][1] = texcoords[3];
+    texCoordsData[1][1] = texcoords[1];
 
-    // Top-right
+    // Vertex 2: Bottom-right (coords[2], coords[3])
     positions[2][0] = coords[2];
-    positions[2][1] = coords[1];
+    positions[2][1] = coords[3];
     texCoordsData[2][0] = texcoords[2];
-    texCoordsData[2][1] = texcoords[1];
+    texCoordsData[2][1] = texcoords[3];
 
-    // Top-left
+    // Vertex 3: Bottom-left (coords[0], coords[3])
     positions[3][0] = coords[0];
-    positions[3][1] = coords[1];
+    positions[3][1] = coords[3];
     texCoordsData[3][0] = texcoords[0];
-    texCoordsData[3][1] = texcoords[1];
+    texCoordsData[3][1] = texcoords[3];
 
     // Upload position data to circular buffer
     VK_UpdateCircularBuffer(&g_vkDraw.tessBuffers.xyz, positions, sizeof(positions));
@@ -365,24 +366,11 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
     key.polygonMode = 0;  // Fill mode
     key.sampleCount = g_vkDevice.msaaSamples;
 
-    // DEBUG: Log pipeline request
-    static int pipelineLogCount = 0;
-    if (pipelineLogCount < 3) {
-        ri.Printf(PRINT_ALL, "VK_DrawImage: Requesting pipeline with shaderType=%d (VK_SHADER_FSQ=%d)\n",
-                  key.shaderType, VK_SHADER_FSQ);
-        pipelineLogCount++;
-    }
-
     // Get or create pipeline
     VkPipeline pipeline = VK_GetOrCreatePipeline(key);
     if (pipeline == VK_NULL_HANDLE) {
         ri.Printf(PRINT_WARNING, "WARNING: Failed to get FSQ pipeline\n");
         return;
-    }
-
-    // DEBUG: Log pipeline binding
-    if (pipelineLogCount <= 3) {
-        ri.Printf(PRINT_ALL, "VK_DrawImage: Binding FSQ pipeline=%p\n", pipeline);
     }
 
     // Bind pipeline
@@ -418,7 +406,9 @@ void VK_DrawImage(const image_t* image, const float* coords, const float* texcoo
                                g_vkPipelines.pipelineLayout, 2, 1,
                                &vkImg->descriptorSet, 0, nullptr);
     } else {
-        ri.Printf(PRINT_WARNING, "WARNING: Texture descriptor set is NULL!\n");
+        ri.Printf(PRINT_WARNING, "WARNING: VK_DrawImage - Texture descriptor set is NULL for '%s', skipping draw\n",
+                  image ? image->imgName : "NULL");
+        return;  // Don't draw with stale descriptor set
     }
 
     // Draw the quad
@@ -589,8 +579,36 @@ void VK_Flush(void) {
 // Set state
 //----------------------------------------------------------------------------
 void VK_SetState(unsigned long stateMask) {
+    // Calculate what changed
+    unsigned long diff = stateMask ^ g_vkRunState.stateMask;
+
     // Store state
     g_vkRunState.stateMask = stateMask;
+
+    // Handle alpha test state changes (matches D3D11 d3d_state.cpp lines 177-204)
+    // Alpha test is emulated in fragment shaders via alphaClip uniform
+    if (diff & GLS_ATEST_BITS) {
+        const float alphaEps = 0.00001f;
+        switch (stateMask & GLS_ATEST_BITS) {
+            case 0:
+                g_vkRunState.alphaClip[0] = 1;
+                g_vkRunState.alphaClip[1] = 0;
+                break;
+            case GLS_ATEST_GT_0:
+                g_vkRunState.alphaClip[0] = 1;
+                g_vkRunState.alphaClip[1] = alphaEps;
+                break;
+            case GLS_ATEST_LT_80:
+                g_vkRunState.alphaClip[0] = -1;
+                g_vkRunState.alphaClip[1] = 0.5f;
+                break;
+            case GLS_ATEST_GE_80:
+                g_vkRunState.alphaClip[0] = 1;
+                g_vkRunState.alphaClip[1] = 0.5f;
+                break;
+        }
+        g_vkRunState.viewPSDirty = qtrue;
+    }
 
     // Pipeline binding happens in drawing functions based on shader type + state
 }
@@ -607,6 +625,9 @@ void VK_ResetState2D(void) {
     memcpy(g_vkRunState.modelViewMatrix, s_identityMatrix, sizeof(float) * 16);
     g_vkRunState.viewVSDirty = qtrue;
 
+    // Reset portal rendering (clip plane) - matches D3D11 line 164
+    VK_SetPortalRendering(qfalse, NULL, NULL);
+
     // Reset depth range for 2D rendering (matches D3D11 line 165)
     VK_SetDepthRange(0, 0);
 }
@@ -615,8 +636,14 @@ void VK_ResetState2D(void) {
 // Reset state for 3D rendering
 //----------------------------------------------------------------------------
 void VK_ResetState3D(void) {
-    g_vkRunState.stateMask = GLS_DEPTHMASK_TRUE | GLS_DEPTHTEST_DISABLE;
-    g_vkRunState.cullMode = CT_FRONT_SIDED;
+    // Reset model-view matrix to identity (matches D3D11 line 170)
+    memcpy(g_vkRunState.modelViewMatrix, s_identityMatrix, sizeof(float) * 16);
+    g_vkRunState.viewVSDirty = qtrue;
+
+    // Set default state: depth mask true, depth test ENABLED (matches D3D11 line 171: GLS_DEFAULT)
+    // Note: GLS_DEFAULT = GLS_DEPTHMASK_TRUE (defined in tr_state.h)
+    // Depth test is ENABLED when GLS_DEPTHTEST_DISABLE is NOT set
+    g_vkRunState.stateMask = GLS_DEFAULT;
 
     // Reset depth range for 3D rendering (matches D3D11 line 172)
     VK_SetDepthRange(0, 1);
@@ -682,16 +709,180 @@ void VK_ShadowFinish(void) {
 // Draw skybox
 //----------------------------------------------------------------------------
 void VK_DrawSkyBox(const skyboxDrawInfo_t* skybox, const float* eye_origin, const float* colorTint) {
-    // TODO: Implement skybox rendering
-    ri.Printf(PRINT_DEVELOPER, "VK_DrawSkyBox called\n");
+    if (!skybox) {
+        return;
+    }
+
+    // Lazy frame begin - start frame if not already started
+    if (!g_vkDraw.inRenderPass) {
+        VK_BeginFrame();
+    }
+
+    VkCommandBuffer cmd = VK_GetCurrentCommandBuffer();
+
+    // Skybox vertex data (interleaved position + texcoord)
+    // Same layout as D3D11: position (3 floats) + texcoord (2 floats) = 5 floats per vertex
+    static const float skyboxVertexData[] = {
+        // Right (+X)
+         1, -1, -1, 1, 1,  // vertex 0
+         1, -1,  1, 1, 0,  // vertex 1
+         1,  1,  1, 0, 0,  // vertex 2
+         1, -1, -1, 1, 1,  // vertex 3
+         1,  1,  1, 0, 0,  // vertex 4
+         1,  1, -1, 0, 1,  // vertex 5
+
+        // Left (-X)
+        -1, -1,  1, 0, 0,  // vertex 6
+        -1, -1, -1, 0, 1,  // vertex 7
+        -1,  1, -1, 1, 1,  // vertex 8
+        -1, -1,  1, 0, 0,  // vertex 9
+        -1,  1, -1, 1, 1,  // vertex 10
+        -1,  1,  1, 1, 0,  // vertex 11
+
+        // Back (+Y)
+        -1,  1,  1, 0, 0,  // vertex 12
+        -1,  1, -1, 0, 1,  // vertex 13
+         1,  1, -1, 1, 1,  // vertex 14
+        -1,  1,  1, 0, 0,  // vertex 15
+         1,  1, -1, 1, 1,  // vertex 16
+         1,  1,  1, 1, 0,  // vertex 17
+
+        // Front (-Y)
+         1, -1,  1, 0, 0,  // vertex 18
+         1, -1, -1, 0, 1,  // vertex 19
+        -1, -1, -1, 1, 1,  // vertex 20
+         1, -1,  1, 0, 0,  // vertex 21
+        -1, -1, -1, 1, 1,  // vertex 22
+        -1, -1,  1, 1, 0,  // vertex 23
+
+        // Up (+Z)
+         1, -1,  1, 1, 1,  // vertex 24
+        -1, -1,  1, 1, 0,  // vertex 25
+        -1,  1,  1, 0, 0,  // vertex 26
+         1, -1,  1, 1, 1,  // vertex 27
+        -1,  1,  1, 0, 0,  // vertex 28
+         1,  1,  1, 0, 1,  // vertex 29
+
+        // Down (-Z)
+        -1, -1, -1, 1, 0,  // vertex 30
+         1, -1, -1, 1, 1,  // vertex 31
+         1,  1, -1, 0, 1,  // vertex 32
+        -1, -1, -1, 1, 0,  // vertex 33
+         1,  1, -1, 0, 1,  // vertex 34
+        -1,  1, -1, 0, 0,  // vertex 35
+    };
+
+    // Upload vertex data to circular buffer
+    VK_UpdateCircularBuffer(&g_vkDraw.tessBuffers.xyz, skyboxVertexData, sizeof(skyboxVertexData));
+    uint32_t vertexOffset = g_vkDraw.tessBuffers.xyz.currentOffset;
+
+    // Update view uniforms if dirty
+    if (g_vkRunState.viewVSDirty) {
+        VK_UpdateViewVSUniform();
+    }
+    if (g_vkRunState.viewPSDirty) {
+        VK_UpdateViewPSUniform();
+    }
+
+    // Update view descriptor set
+    VK_UpdateViewDescriptorSet(g_vkDraw.currentFrame);
+
+    // Update stage uniform (for color tint)
+    vkStageUniform_t stageUniform;
+    if (colorTint) {
+        stageUniform.color[0] = colorTint[0];
+        stageUniform.color[1] = colorTint[1];
+        stageUniform.color[2] = colorTint[2];
+        stageUniform.color[3] = 1.0f;
+    } else {
+        stageUniform.color[0] = 1.0f;
+        stageUniform.color[1] = 1.0f;
+        stageUniform.color[2] = 1.0f;
+        stageUniform.color[3] = 1.0f;
+    }
+    VK_UpdateCircularBuffer(&g_vkDraw.uniformBuffers.stage, &stageUniform, sizeof(stageUniform));
+
+    // Update stage descriptor set
+    VK_UpdateStageDescriptorSet(g_vkDraw.currentFrame);
+
+    // Set state (no blending, two-sided rendering)
+    VK_SetState(0);
+
+    // Build pipeline key for skybox shader
+    vkPipelineKey_t key = {};
+    key.shaderType = VK_SHADER_SKYBOX;
+    key.blendSrc = GLS_SRCBLEND_ONE;
+    key.blendDst = GLS_DSTBLEND_ZERO;
+    key.depthFlags = 0;  // Normal depth test
+    key.cullMode = CT_TWO_SIDED;
+    key.polygonMode = 0;  // Fill mode
+    key.sampleCount = g_vkDevice.msaaSamples;
+
+    // Get or create pipeline
+    VkPipeline pipeline = VK_GetOrCreatePipeline(key);
+    if (pipeline == VK_NULL_HANDLE) {
+        ri.Printf(PRINT_WARNING, "WARNING: Failed to get skybox pipeline\n");
+        return;
+    }
+
+    // Bind pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    // Bind vertex buffer (single interleaved buffer)
+    VkBuffer vertexBuffers[] = {g_vkDraw.tessBuffers.xyz.buffer};
+    VkDeviceSize offsets[] = {vertexOffset};
+    vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+
+    // Bind descriptor set 0 (view uniforms)
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           g_vkPipelines.pipelineLayout, 0, 1,
+                           &g_vkDraw.descriptorSets.currentViewSet, 0, nullptr);
+
+    // Bind descriptor set 1 (stage uniforms)
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                           g_vkPipelines.pipelineLayout, 1, 1,
+                           &g_vkDraw.descriptorSets.currentStageSet, 0, nullptr);
+
+    // Draw each side of the skybox (6 sides, 6 vertices each)
+    for (int i = 0; i < 6; ++i) {
+        const skyboxSideDrawInfo_t* side = &skybox->sides[i];
+
+        if (!side->image) {
+            continue;
+        }
+
+        // Get Vulkan image
+        vkImage_t* vkImg = VK_GetImage(side->image);
+        if (!vkImg || vkImg->image == VK_NULL_HANDLE || vkImg->descriptorSet == VK_NULL_HANDLE) {
+            continue;
+        }
+
+        // Bind descriptor set 2 (texture)
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                               g_vkPipelines.pipelineLayout, 2, 1,
+                               &vkImg->descriptorSet, 0, nullptr);
+
+        // Push constant for eye position offset
+        if (eye_origin) {
+            vkCmdPushConstants(cmd, g_vkPipelines.pipelineLayout,
+                             VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 3, eye_origin);
+        } else {
+            float zero[3] = {0.0f, 0.0f, 0.0f};
+            vkCmdPushConstants(cmd, g_vkPipelines.pipelineLayout,
+                             VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 3, zero);
+        }
+
+        // Draw this side (6 vertices starting at i * 6)
+        vkCmdDraw(cmd, 6, 1, i * 6, 0);
+    }
 }
 
 //----------------------------------------------------------------------------
 // Draw beam
 //----------------------------------------------------------------------------
 void VK_DrawBeam(const image_t* image, const float* color, const vec3_t startPoints[], const vec3_t endPoints[], int segs) {
-    // TODO: Implement beam rendering (lightning, etc.)
-    ri.Printf(PRINT_DEVELOPER, "VK_DrawBeam not yet implemented\n");
+    // Not implemented - after a grep of the BSP files there is no reference to RT_BEAM anywhere.
+    // This matches the D3D11 implementation which also skips beam rendering.
 }
 
 //----------------------------------------------------------------------------
@@ -788,14 +979,18 @@ void VK_DrawStageGeneric(const shaderCommands_t* input) {
 
         // Bind texture descriptor set (set 2)
         image_t* texture = pStage->bundle[0].image[0];
-        if (texture) {
-            vkImage_t* vkImg = VK_GetImage(texture);
-            if (vkImg && vkImg->descriptorSet != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                       g_vkPipelines.pipelineLayout, 2, 1,
-                                       &vkImg->descriptorSet, 0, nullptr);
-            }
+        if (!texture) {
+            continue;  // Skip stage without texture to avoid using stale descriptor set
         }
+
+        vkImage_t* vkImg = VK_GetImage(texture);
+        if (!vkImg || vkImg->descriptorSet == VK_NULL_HANDLE) {
+            continue;  // Skip stage without valid descriptor set to avoid using stale descriptor set
+        }
+
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                               g_vkPipelines.pipelineLayout, 2, 1,
+                               &vkImg->descriptorSet, 0, nullptr);
 
         // Draw
         VK_DrawIndexed(input->numIndexes, 0, 0);

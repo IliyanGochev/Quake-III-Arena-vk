@@ -63,7 +63,19 @@ static BOOL RegisterWindowClass()
     wc.lpszMenuName = NULL;
     wc.lpszClassName = WINDOW_CLASS_NAME;
 
-    return ::RegisterClass( &wc ) != 0;
+    if (::RegisterClass(&wc) != 0) {
+        return TRUE;
+    }
+
+    // If registration failed because class already exists, that's OK
+    DWORD error = GetLastError();
+    if (error == ERROR_CLASS_ALREADY_EXISTS) {
+        return TRUE;
+    }
+
+    // Real failure
+    ri.Printf(PRINT_WARNING, "RegisterClass failed with error %d\n", error);
+    return FALSE;
 }
 
 //----------------------------------------------------------------------------
