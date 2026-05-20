@@ -254,10 +254,10 @@ extern vkDrawState_t  g_vkDrawState;
 // Internal APIs
 //----------------------------------------------------------------------------
 
-void InitDrawState();
-void DestroyDrawState();
+void VKDRV_InitDrawState();
+void VKDRV_DestroyDrawState();
 
-void CommitRasterizerState( int cullMode, qboolean polyOffset, qboolean outline );
+void VKDRV_CommitRasterizerState( int cullMode, qboolean polyOffset, qboolean outline );
 void UpdateViewState();
 void UpdateMaterialState();
 

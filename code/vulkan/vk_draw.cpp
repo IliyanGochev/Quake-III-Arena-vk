@@ -169,7 +169,7 @@ static void DrawSkyBox(
     const float* colorTint )
 {
     VKDrv_SetState( 0 );
-    CommitRasterizerState( CT_TWO_SIDED, qfalse, qfalse );
+    VKDRV_CommitRasterizerState( CT_TWO_SIDED, qfalse, qfalse );
 
     UpdateViewState();
     UpdateMaterialState();
@@ -577,7 +577,7 @@ void VKDrv_DrawStageGeneric( const shaderCommands_t* input )
 
     UploadTessBuffers( input, needDLights, needFog );
 
-    CommitRasterizerState( input->shader->cullType, input->shader->polygonOffset, qfalse );
+    VKDRV_CommitRasterizerState( input->shader->cullType, input->shader->polygonOffset, qfalse );
 
     const vkCircularBuffer_t* indexes = &g_vkDrawState.tessBufs.indexes;
 

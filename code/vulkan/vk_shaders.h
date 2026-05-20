@@ -2,8 +2,8 @@
 
 // @pjb: SPIR-V shader loading functions
 
-void InitShaders();
-void DestroyShaders();
+void VKDRV_InitShaders();
+void VKDRV_DestroyShaders();
 
 // Load a SPIR-V shader module from a compiled .spv file
 VkShaderModule LoadShaderModule( const char* name );

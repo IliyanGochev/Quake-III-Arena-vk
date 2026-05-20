@@ -1,6 +1,5 @@
 #include "vk_common.h"
 #include "vk_state.h"
-#include "vk_state.h"
 #include "vk_image.h"
 
 #include <vector>
@@ -787,7 +786,7 @@ void VKDRV_CreateDescriptorSystem()
 void VKDRV_PopulateDescriptorSets()
 {
     // Populate descriptor sets with uniform buffer references
-    // This must be called after all uniform buffers are created (after InitDrawState)
+    // This must be called after all uniform buffers are created (after VKDRV_InitDrawState)
     for ( int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++ )
     {
         VkDescriptorBufferInfo vsBufInfo = {};

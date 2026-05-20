@@ -550,13 +550,13 @@ const vkImage_t* GetImageRenderInfo( const image_t* image )
 // Init/Destroy
 //----------------------------------------------------------------------------
 
-void InitImages()
+void VKDRV_InitImages()
 {
     Com_Memset( g_vkImagePool, 0, sizeof( g_vkImagePool ) );
     g_vkImageCount = 0;
 }
 
-void DestroyImages()
+void VKDRV_DestroyImages()
 {
     for ( int i = 0; i < VK_IMAGE_POOL_SIZE; i++ )
     {

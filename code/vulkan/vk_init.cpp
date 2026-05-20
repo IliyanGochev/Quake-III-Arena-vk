@@ -181,7 +181,7 @@ void VKDrv_Shutdown( void )
 void VKDrv_UnbindResources( void )
 {
     // Release GPU references without destroying the device
-    DestroyDrawState();
+    VKDRV_DestroyDrawState();
 }
 
 size_t VKDrv_LastError( void )
@@ -629,7 +629,7 @@ void VKDRV_Init()
         g_vkGammaTable[i] = (unsigned char)i;
 
     // 15. Initialize all draw state
-    InitDrawState();
+    VKDRV_InitDrawState();
 
     // 16. Populate descriptor sets with buffer references (after all buffers created)
     VKDRV_PopulateDescriptorSets();
@@ -645,7 +645,7 @@ void VKDRV_Shutdown()
         VKDRV_SavePipelineCache();
     }
 
-    DestroyDrawState();
+    VKDRV_DestroyDrawState();
     VKDRV_DestroyDescriptorSystem();
     VKDRV_DestroySamplers();
     VKDRV_DestroySyncObjects();

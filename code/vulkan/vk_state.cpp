@@ -271,7 +271,7 @@ VkBlendFactor VKDRV_GetDstBlendFactor( int qConstant )
 // CommitRasterizerState -- mirrors D3D11's CommitRasterizerState
 //----------------------------------------------------------------------------
 
-void CommitRasterizerState( int cullMode, qboolean polyOffset, qboolean outline )
+void VKDRV_CommitRasterizerState( int cullMode, qboolean polyOffset, qboolean outline )
 {
     g_vkRunState.cullMode = cullMode;
     g_vkRunState.wireframe = outline;
@@ -447,7 +447,7 @@ void VKDrv_ResetState3D( void )
 // Init/Destroy draw state
 //----------------------------------------------------------------------------
 
-void InitDrawState()
+void VKDRV_InitDrawState()
 {
     Com_Memset( &g_vkRunState, 0, sizeof( g_vkRunState ) );
     Com_Memset( &g_vkDrawState, 0, sizeof( g_vkDrawState ) );
@@ -467,8 +467,8 @@ void InitDrawState()
     g_vkRunState.cullMode = -1;
 
     // Create all GPU resources
-    InitImages();
-    InitShaders();
+    VKDRV_InitImages();
+    VKDRV_InitShaders();
     InitQuadRenderData( &g_vkDrawState.quadRenderData );
     InitSkyBoxRenderData( &g_vkDrawState.skyBoxRenderData );
     InitViewRenderData( &g_vkDrawState.viewRenderData );
@@ -478,7 +478,7 @@ void InitDrawState()
     InitTessBuffers( &g_vkDrawState.tessBufs );
 }
 
-void DestroyDrawState()
+void VKDRV_DestroyDrawState()
 {
     DestroyTessBuffers( &g_vkDrawState.tessBufs );
     DestroyGenericStageRenderData( &g_vkDrawState.genericStage );
@@ -487,8 +487,8 @@ void DestroyDrawState()
     DestroyViewRenderData( &g_vkDrawState.viewRenderData );
     DestroySkyBoxRenderData( &g_vkDrawState.skyBoxRenderData );
     DestroyQuadRenderData( &g_vkDrawState.quadRenderData );
-    DestroyShaders();
-    DestroyImages();
+    VKDRV_DestroyShaders();
+    VKDRV_DestroyImages();
 
     Com_Memset( &g_vkRunState, 0, sizeof( g_vkRunState ) );
     Com_Memset( &g_vkDrawState, 0, sizeof( g_vkDrawState ) );

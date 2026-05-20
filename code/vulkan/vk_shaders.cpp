@@ -107,7 +107,7 @@ VkPipelineShaderStageCreateInfo CreateFragmentShaderStage( VkShaderModule module
 // InitShaders -- preloads all shader modules
 //----------------------------------------------------------------------------
 
-void InitShaders()
+void VKDRV_InitShaders()
 {
     // Preload all known shaders
     // These correspond to the .spv files in vulkan/shaders/compiled/
@@ -122,7 +122,7 @@ void InitShaders()
     Com_Memset( g_vkShaderCache, 0, sizeof( g_vkShaderCache ) );
 }
 
-void DestroyShaders()
+void VKDRV_DestroyShaders()
 {
     for ( int i = 0; i < g_vkShaderCount; i++ )
     {
