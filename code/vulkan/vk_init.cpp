@@ -331,7 +331,7 @@ static void VKDRV_LoadPipelineCache()
 
     if ( fileData )
     {
-        ri.Free( fileData );
+        FS_FreeFile( fileData );
     }
 }
 
@@ -387,6 +387,7 @@ static cvar_t* r_vulkanDumpPipelines = nullptr;
 
 void VKDRV_Init()
 {
+
     // Register Vulkan-specific CVARs
     r_vulkanValidation = ri.Cvar_Get( "r_vulkanValidation",
 #ifdef DEBUG

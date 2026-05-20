@@ -62,11 +62,14 @@ VkShaderModule LoadShaderModule( const char* name )
     if ( vkCreateShaderModule( g_vkDevice, &createInfo, nullptr, &module ) != VK_SUCCESS )
     {
         ri.Printf( PRINT_DEVELOPER, "ERROR: Failed to create shader module: %s\n", path );
-        ri.Free( fileData );
+        FS_FreeFile( fileData );
         return VK_NULL_HANDLE;
     }
 
-    ri.Free( fileData );
+    if ( fileData )
+    {
+        FS_FreeFile( fileData );
+    }
 
     // Cache it
     if ( g_vkShaderCount < VK_SHADER_CACHE_SIZE )
