@@ -1,4 +1,5 @@
 #include "vk_common.h"
+#include "vk_state.h"
 #include "vk_driver.h"
 #include "vk_state.h"
 #include "vk_image.h"
@@ -108,10 +109,10 @@ static void DrawQuad(
         }
         else
         {
-            qrd->uniformData->color[0] = 1;
-            qrd->uniformData->color[1] = 1;
-            qrd->uniformData->color[2] = 1;
-            qrd->uniformData->color[3] = 1;
+            qrd->uniformData->color[0] = 1.0f;
+            qrd->uniformData->color[1] = 1.0f;
+            qrd->uniformData->color[2] = 1.0f;
+            qrd->uniformData->color[3] = 1.0f;
         }
     }
 
@@ -249,7 +250,7 @@ static void DrawSkyBox(
 // TessDrawTextured -- single texture stage draw
 //----------------------------------------------------------------------------
 
-static void TessDrawTextured( const shaderCommands_t* input, int stage )
+static void TessDrawTextured( const shaderCommands_t* input, int stage, VkPipeline overridePipeline )
 {
     const vkTessBuffers_t* buffers = &g_vkDrawState.tessBufs;
     shaderStage_t* pStage = input->xstages[stage];
@@ -269,10 +270,12 @@ static void TessDrawTextured( const shaderCommands_t* input, int stage )
 
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
 
-    VkPipeline pipe = VKDRV_SelectPipeline( g_vkRunState.depthStateMask,
-                                            g_vkRunState.cullMode,
-                                            g_vkRunState.wireframe,
-                                            g_vkRunState.blendState );
+    VkPipeline pipe = ( overridePipeline != VK_NULL_HANDLE )
+        ? overridePipeline
+        : VKDRV_SelectPipeline( g_vkRunState.depthStateMask,
+                                g_vkRunState.cullMode,
+                                g_vkRunState.wireframe,
+                                g_vkRunState.blendState );
     vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe );
 
     // Bind all vertex buffers including position at slot 0 — makes the draw
@@ -302,7 +305,7 @@ static void TessDrawTextured( const shaderCommands_t* input, int stage )
 // TessDrawMultitextured -- two texture stage draw
 //----------------------------------------------------------------------------
 
-static void TessDrawMultitextured( const shaderCommands_t* input, int stage )
+static void TessDrawMultitextured( const shaderCommands_t* input, int stage, VkPipeline overridePipeline )
 {
     const vkTessBuffers_t* buffers = &g_vkDrawState.tessBufs;
     shaderStage_t* pStage = input->xstages[stage];
@@ -313,9 +316,10 @@ static void TessDrawMultitextured( const shaderCommands_t* input, int stage )
 
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
 
-      // Note: multi-texture uses fixed pipeline; state switching applies to single-texture
-    vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        g_vkDrawState.genericStage.pipelineMT );
+    VkPipeline pipe = ( overridePipeline != VK_NULL_HANDLE )
+        ? overridePipeline
+        : g_vkDrawState.genericStage.pipelineMT;
+    vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe );
 
     // Bind all vertex buffers including position at slot 0
     VkBuffer vbufs[4] = {
@@ -405,43 +409,35 @@ static void TessProjectDynamicLights( const shaderCommands_t* input )
 
 static void TessDrawFog( const shaderCommands_t* input )
 {
-    if ( input->shader->fogPass == FP_EQUAL )
-    {
-        VKDrv_SetState( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | GLS_DEPTHFUNC_EQUAL );
-    }
-    else
-    {
-        VKDrv_SetState( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
-    }
-    UpdateMaterialState();
-
-    const vkTessBuffers_t* buffers = &g_vkDrawState.tessBufs;
-    const vkImage_t* tex = GetImageRenderInfo( tr.fogImage );
-    ASSERT( tex );
-
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
 
-    VkPipeline pipeFog = VKDRV_SelectPipeline( g_vkRunState.depthStateMask,
-                                                g_vkRunState.cullMode,
-                                                g_vkRunState.wireframe,
-                                                g_vkRunState.blendState );
+    // Select fog pipeline based on fogPass type
+    VkPipeline pipeFog = ( input->shader->fogPass == FP_EQUAL )
+        ? g_vkDrawState.fogRenderData.additivePipeline
+        : g_vkDrawState.fogRenderData.pipeline;
     vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeFog );
 
-    // Bind all vertex buffers including position at slot 0
+    // Bind vertex buffers: position + fog texcoords + fog colors
     VkBuffer vbufs[3] = {
-        buffers->xyz.buffer, buffers->fog.texCoords.buffer, buffers->fog.colors.buffer
+        g_vkDrawState.tessBufs.xyz.buffer,
+        g_vkDrawState.tessBufs.fog.texCoords.buffer,
+        g_vkDrawState.tessBufs.fog.colors.buffer
     };
     VkDeviceSize voffsets[3] = {
-        buffers->xyz.currentOffset, buffers->fog.texCoords.currentOffset, buffers->fog.colors.currentOffset
+        g_vkDrawState.tessBufs.xyz.currentOffset,
+        g_vkDrawState.tessBufs.fog.texCoords.currentOffset,
+        g_vkDrawState.tessBufs.fog.colors.currentOffset
     };
     vkCmdBindVertexBuffers( cmd, 0, 3, vbufs, voffsets );
 
-    vkCmdBindIndexBuffer( cmd, buffers->indexes.buffer,
-                          buffers->indexes.currentOffset, VK_INDEX_TYPE_UINT16 );
+    vkCmdBindIndexBuffer( cmd, g_vkDrawState.tessBufs.indexes.buffer,
+                          g_vkDrawState.tessBufs.indexes.currentOffset, VK_INDEX_TYPE_UINT16 );
 
     vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelineLayout, 0, 1, &g_vkDescriptorSets[g_vkCurrentFrame], 0, nullptr );
 
     // Update texture descriptor for fog
+    const vkImage_t* tex = GetImageRenderInfo( tr.fogImage );
+    ASSERT( tex );
     VKDRV_UpdateTextureDescriptors( tex, nullptr );
 
     vkCmdDrawIndexed( cmd, input->numIndexes, 1, 0, 0, 0 );
@@ -453,6 +449,9 @@ static void TessDrawFog( const shaderCommands_t* input )
 
 static void IterateStagesGeneric( const shaderCommands_t* input )
 {
+    qboolean lightmapMode = (qboolean)( r_lightmap->integer != 0 );
+    VkPipeline overridePipe = lightmapMode ? g_vkDrawState.lightmapRenderData.pipeline : VK_NULL_HANDLE;
+
     for ( int stage = 0; stage < MAX_SHADER_STAGES; stage++ )
     {
         shaderStage_t* pStage = input->xstages[stage];
@@ -464,14 +463,14 @@ static void IterateStagesGeneric( const shaderCommands_t* input )
 
         if ( pStage->bundle[1].image[0] != 0 )
         {
-            TessDrawMultitextured( input, stage );
+            TessDrawMultitextured( input, stage, overridePipe );
         }
         else
         {
-            TessDrawTextured( input, stage );
+            TessDrawTextured( input, stage, overridePipe );
         }
 
-        if ( r_lightmap->integer &&
+        if ( lightmapMode &&
              ( pStage->bundle[0].isLightmap || pStage->bundle[1].isLightmap || pStage->bundle[0].vertexLightmap ) )
         {
             break;
@@ -514,6 +513,11 @@ void VKDrv_DrawBeam( const image_t* image, const float* color, const vec3_t star
     struct BeamVert { float x, y, z, s, t; };
     int vertCount = segs * 4;
     BeamVert* verts = (BeamVert*)ri.Malloc( vertCount * sizeof(BeamVert) );
+    if ( !verts )
+    {
+        ri.Printf( PRINT_WARNING, "Vulkan: Out of memory in VKDrv_DrawBeam\n" );
+        return;
+    }
 
     for ( int i = 0; i < segs; i++ )
     {
@@ -567,9 +571,9 @@ void VKDrv_DrawStageGeneric( const shaderCommands_t* input )
 {
     UpdateViewState();
 
-    qboolean needDLights = input->dlightBits && input->shader->sort <= SS_OPAQUE
-        && !(input->shader->surfaceFlags & (SURF_NODLIGHT | SURF_SKY));
-    qboolean needFog = input->fogNum && input->shader->fogPass;
+    qboolean needDLights = (qboolean)(input->dlightBits && input->shader->sort <= SS_OPAQUE
+        && !(input->shader->surfaceFlags & (SURF_NODLIGHT | SURF_SKY)));
+    qboolean needFog = (qboolean)(input->fogNum && input->shader->fogPass);
 
     UploadTessBuffers( input, needDLights, needFog );
 
@@ -618,7 +622,7 @@ void VKDrv_DebugDrawAxis( void )
 {
     // Draw a 3-axis debug indicator (X=red, Y=green, Z=blue)
     // Uses degenerate triangle pairs to render lines
-    float axisVerts[18] = {
+    float axisVerts[48] = {
         0, 0, 0, 1,    100, 0, 0, 1,     // X axis
         0, 0, 0, 1,    100, 0, 0, 1,
         0, 0, 0, 1,    0, 100, 0, 1,     // Y axis
@@ -668,23 +672,34 @@ void VKDrv_DebugDrawNormals( const shaderCommands_t* input )
 
     // Build line-segment pairs from vertex positions and their normals
     float* normVerts = (float*)ri.Malloc( input->numVertexes * 2 * sizeof(vec4_t) );
+    if ( !normVerts )
+    {
+        ri.Printf( PRINT_WARNING, "Vulkan: Out of memory in VKDrv_DebugDrawNormals\n" );
+        return;
+    }
     int vertCount = 0;
 
     for ( int i = 0; i < input->numVertexes; i++ )
     {
-        const vec4_t* pos = &input->xyz[i];
-        const vec3_t* norm = &input->normals[i];
         float scale = 10.0f;
 
-        normVerts[vertCount * 4] = pos[0];
-        normVerts[vertCount * 4 + 1] = pos[1];
-        normVerts[vertCount * 4 + 2] = pos[2];
-        normVerts[vertCount * 4 + 3] = pos[3];
+        normVerts[vertCount * 4] = input->xyz[i][0];
+        normVerts[vertCount * 4 + 1] = input->xyz[i][1];
+        normVerts[vertCount * 4 + 2] = input->xyz[i][2];
+        normVerts[vertCount * 4 + 3] = input->xyz[i][3];
         vertCount++;
 
-        normVerts[vertCount * 4] = pos[0] + norm[0] * scale;
-        normVerts[vertCount * 4 + 1] = pos[1] + norm[1] * scale;
-        normVerts[vertCount * 4 + 2] = pos[2] + norm[2] * scale;
+        {
+            float x = input->xyz[i][0];
+            float y = input->xyz[i][1];
+            float z = input->xyz[i][2];
+            float nx = input->normal[i][0];
+            float ny = input->normal[i][1];
+            float nz = input->normal[i][2];
+            normVerts[vertCount * 4]     = x + nx * scale;
+            normVerts[vertCount * 4 + 1] = y + ny * scale;
+            normVerts[vertCount * 4 + 2] = z + nz * scale;
+        }
         normVerts[vertCount * 4 + 3] = 1.0f;
         vertCount++;
     }
@@ -734,6 +749,11 @@ void VKDrv_DebugDrawPolygon( int color, int numPoints, const float* points )
 
     // Build closed polygon as degenerate triangle pairs (line rendering)
     float* polyVerts = (float*)ri.Malloc( (numPoints + 1) * sizeof(vec4_t) );
+    if ( !polyVerts )
+    {
+        ri.Printf( PRINT_WARNING, "Vulkan: Out of memory in VKDrv_DebugDrawPolygon\n" );
+        return;
+    }
     for ( int i = 0; i < numPoints; i++ )
     {
         polyVerts[i * 4 + 0] = points[i * 3 + 0];

@@ -1,6 +1,9 @@
 #include "vk_common.h"
 #include "vk_state.h"
 #include "vk_driver.h"
+#include "vk_image.h"
+#include "vk_shaders.h"
+#include "vk_drawdata.h"
 
 //----------------------------------------------------------------------------
 // Translate GLS_* state bitmasks to Vulkan pipeline state
@@ -24,7 +27,6 @@ VkPipeline VKDRV_CreatePipeline(
     VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_DEPTH_RANGE,
         VK_DYNAMIC_STATE_DEPTH_BOUNDS
     };
 
@@ -87,9 +89,19 @@ VkPipeline VKDRV_SelectPipeline( unsigned long depthState, int cullMode, qboolea
 
     // Include alpha test in the pipeline key so alpha-tested surfaces get
     // distinct pipeline variants from blended surfaces with the same blend factors.
-    int index = (int)( (depthState << (3 + 2 + 2)) | (rasterState << (2 + 2)) | (blendState << 2) | g_vkRunState.alphaTest );
+    // Index encoding: depthState[rasterState[blendState[alphaTest]]]
+    // Shift amounts derived from enum sizes to avoid magic numbers.
+    static constexpr int kAlphaTestShift = 0;
+    static constexpr int kBlendStateShift = kAlphaTestShift + 2; // 2 bits for alphaTest (4 values)
+    static constexpr int kRasterStateShift = kBlendStateShift + 2; // 2 bits for blendState (4 values)
+    static constexpr int kDepthStateShift = kRasterStateShift + 3; // 3 bits for rasterState (8 values)
+    int index = (int)( (depthState << kDepthStateShift)
+                     | (rasterState << kRasterStateShift)
+                     | (blendState << kBlendStateShift)
+                     | g_vkRunState.alphaTest );
 
-    if ( index < 0 || index >= VK_DEPTHSTATE_COUNT * VK_RASTERIZER_COUNT * VK_BLENDSTATE_COUNT * VK_ALPHATEST_COUNT )
+    int totalPipelines = VK_DEPTHSTATE_COUNT * VK_RASTERIZER_COUNT * VK_BLENDSTATE_COUNT * VK_ALPHATEST_COUNT;
+    if ( index < 0 || index >= totalPipelines )
         return g_vkDrawState.genericStage.pipelineST;
 
     if ( g_vkDrawState.genericStage.pipelineCache[index] != VK_NULL_HANDLE )
@@ -118,7 +130,7 @@ VkPipeline VKDRV_SelectPipeline( unsigned long depthState, int cullMode, qboolea
     vi.vertexBindingDescriptionCount = 3;
     vi.pVertexBindingDescriptions = viBindings;
     vi.vertexAttributeDescriptionCount = 3;
-    vi.pVertexAttributes = viAttrs;
+    vi.pVertexAttributeDescriptions = viAttrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia = {};
     ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -139,11 +151,11 @@ VkPipeline VKDRV_SelectPipeline( unsigned long depthState, int cullMode, qboolea
     }
     else if ( rasterState & VK_RASTERIZER_FLAG_FRONT )
     {
-        rs.cullMode = VK_CULL_MODE_FRONT;
+        rs.cullMode = VK_CULL_MODE_FRONT_BIT;
     }
     else
     {
-        rs.cullMode = VK_CULL_MODE_BACK;
+        rs.cullMode = VK_CULL_MODE_BACK_BIT;
     }
     rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rs.depthBiasEnable = (rasterState & VK_RASTERIZER_FLAG_POLY_OFFSET) != 0;
@@ -461,6 +473,8 @@ void InitDrawState()
     InitSkyBoxRenderData( &g_vkDrawState.skyBoxRenderData );
     InitViewRenderData( &g_vkDrawState.viewRenderData );
     InitGenericStageRenderData( &g_vkDrawState.genericStage );
+    InitFogRenderData( &g_vkDrawState.fogRenderData );
+    InitLightmapRenderData( &g_vkDrawState.lightmapRenderData );
     InitTessBuffers( &g_vkDrawState.tessBufs );
 }
 
@@ -468,6 +482,8 @@ void DestroyDrawState()
 {
     DestroyTessBuffers( &g_vkDrawState.tessBufs );
     DestroyGenericStageRenderData( &g_vkDrawState.genericStage );
+    DestroyFogRenderData( &g_vkDrawState.fogRenderData );
+    DestroyLightmapRenderData( &g_vkDrawState.lightmapRenderData );
     DestroyViewRenderData( &g_vkDrawState.viewRenderData );
     DestroySkyBoxRenderData( &g_vkDrawState.skyBoxRenderData );
     DestroyQuadRenderData( &g_vkDrawState.quadRenderData );

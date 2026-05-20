@@ -1,5 +1,20 @@
 #include "vk_common.h"
 #include "vk_state.h"
+#include "vk_driver.h"
+
+//----------------------------------------------------------------------------
+// Apply gamma correction to pixel data (matches OpenGL R_LightScaleTexture)
+//----------------------------------------------------------------------------
+
+static void VKDRV_ApplyGamma( byte* data, int pixelCount, int bytesPerPixel )
+{
+    for ( int i = 0; i < pixelCount; i++ )
+    {
+        data[i * bytesPerPixel + 0] = g_vkGammaTable[data[i * bytesPerPixel + 0]];
+        data[i * bytesPerPixel + 1] = g_vkGammaTable[data[i * bytesPerPixel + 1]];
+        data[i * bytesPerPixel + 2] = g_vkGammaTable[data[i * bytesPerPixel + 2]];
+    }
+}
 
 //----------------------------------------------------------------------------
 // Image management -- mirrors the D3D11 image system
@@ -22,7 +37,7 @@ static VkDeviceSize VKDRV_CalculateImageUploadSize( VkFormat format, int width, 
     case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
     case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
     case VK_FORMAT_BC4_UNORM_BLOCK:
-    case VK_FORMAT_BC4_SSNORM_BLOCK:
+    case VK_FORMAT_BC4_SNORM_BLOCK:
         // 8 bytes per 4x4 block
     {
         int blocksX = (width + 3) / 4;
@@ -32,7 +47,7 @@ static VkDeviceSize VKDRV_CalculateImageUploadSize( VkFormat format, int width, 
     case VK_FORMAT_BC2_UNORM_BLOCK:
     case VK_FORMAT_BC3_UNORM_BLOCK:
     case VK_FORMAT_BC5_UNORM_BLOCK:
-    case VK_FORMAT_BC5_SGNORM_BLOCK:
+    case VK_FORMAT_BC5_SNORM_BLOCK:
         // 16 bytes per 4x4 block
     {
         int blocksX = (width + 3) / 4;
@@ -68,6 +83,30 @@ static VkDeviceSize VKDRV_CalculateImageUploadSize( VkFormat format, int width, 
     }
 
     return (VkDeviceSize)width * height * bytesPerPixel;
+}
+
+// Calculate the source data size based on the original engine format
+static VkDeviceSize VKDRV_CalculateSourceDataSize( imageFormat_t fmt, int width, int height, qboolean isLightmap )
+{
+    // Lightmaps are always promoted to 4-byte format
+    if ( isLightmap && fmt == IMAGEFORMAT_I )
+        return (VkDeviceSize)width * height * 4;
+
+    switch ( fmt )
+    {
+    case IMAGEFORMAT_RGB:
+    case IMAGEFORMAT_RGB5:
+        return (VkDeviceSize)width * height * 3;
+    case IMAGEFORMAT_I:
+        return (VkDeviceSize)width * height * 1;
+    case IMAGEFORMAT_RGBA:
+    case IMAGEFORMAT_RGBA8:
+    case IMAGEFORMAT_RGBA4:
+    case IMAGEFORMAT_IA:
+    case IMAGEFORMAT_S3TC:
+    default:
+        return (VkDeviceSize)width * height * 4;
+    }
 }
 
 static VkFormat VKDRV_GetVkFormat( imageFormat_t fmt, qboolean isLightmap )
@@ -190,6 +229,20 @@ void VKDrv_CreateImage( const image_t* image, const byte* pic, qboolean isLightm
     void* data;
     vmaMapMemory( g_vkAllocator, stagingAllocation, &data );
     memcpy( data, pic, (size_t)imageSize );
+
+    // Apply gamma correction matching OpenGL driver's table-based approach
+    // (spec §11.6). Engine already applies s_intensitytable (overbright);
+    // we apply s_gammatable here since Vulkan has no hardware gamma.
+    int bpp = 4;
+    switch ( format )
+    {
+    case VK_FORMAT_R8G8B8_UNORM:
+    case VK_FORMAT_B8G8R8_UNORM:  bpp = 3; break;
+    case VK_FORMAT_R8_UNORM:      bpp = 1; break;
+    default:                      bpp = 4; break;
+    }
+    VKDRV_ApplyGamma( (byte*)data, (int)(imageSize / bpp), bpp );
+
     vmaUnmapMemory( g_vkAllocator, stagingAllocation );
 
     VkBufferImageCopy copyRegion = {};
@@ -212,7 +265,7 @@ void VKDrv_CreateImage( const image_t* image, const byte* pic, qboolean isLightm
                            0, 0, nullptr, 0, nullptr, 1, &barrier );
 
     VKDRV_EndCommandBuffer( cmd );
-    VKDRV_SubmitCommandBuffer( cmd, qfalse );
+    VKDRV_SubmitCommandBuffer( cmd, qfalse, qtrue );
 
     // Generate mipmaps via vkCmdBlitImage (if mipmap > 1)
     if ( totalMipLevels > 1 )
@@ -292,7 +345,7 @@ void VKDrv_CreateImage( const image_t* image, const byte* pic, qboolean isLightm
         // frame cannot sample a partially-mipmapped texture. The fence was
         // already reset by the initial upload submission, so waiting here
         // correctly gates on the mipmap blit (not the upload).
-        VKDRV_SubmitCommandBuffer( mipmapCmd, qtrue );
+        VKDRV_SubmitCommandBuffer( mipmapCmd, qtrue, qtrue );
     }
 
     vmaDestroyBuffer( g_vkAllocator, stagingBuffer, stagingAllocation );
@@ -390,6 +443,10 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
     void* data;
     vmaMapMemory( g_vkAllocator, stagingAllocation, &data );
     memcpy( data, pic, (size_t)imageSize );
+
+    // Apply gamma correction for cinematic updates
+    VKDRV_ApplyGamma( (byte*)data, cols * rows, 4 );
+
     vmaUnmapMemory( g_vkAllocator, stagingAllocation );
 
     VkCommandBuffer cmd = VKDRV_BeginCommandBuffer();
@@ -442,7 +499,7 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
                            0, 0, nullptr, 0, nullptr, 1, &toShader );
 
     VKDRV_EndCommandBuffer( cmd );
-    VKDRV_SubmitCommandBuffer( cmd, qfalse );
+    VKDRV_SubmitCommandBuffer( cmd, qfalse, qtrue );
 
     vmaDestroyBuffer( g_vkAllocator, stagingBuffer, stagingAllocation );
 }

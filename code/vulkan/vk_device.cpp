@@ -1,5 +1,6 @@
 #include "vk_common.h"
 #include "vk_state.h"
+#include "vk_state.h"
 #include "vk_image.h"
 
 #include <vector>
@@ -34,6 +35,7 @@ VkCommandBuffer    g_vkCommandBuffers[VK_MAX_FRAMES_IN_FLIGHT] = { };
 
 VkCommandPool      g_vkTransferCommandPool = VK_NULL_HANDLE;
 VkCommandBuffer    g_vkTransferCommandBuffer = VK_NULL_HANDLE;
+VkFence            g_vkTransferFence = VK_NULL_HANDLE;
 
 VkDescriptorPool   g_vkDescriptorPool = VK_NULL_HANDLE;
 VkDescriptorSetLayout g_vkDescriptorSetLayout = VK_NULL_HANDLE;
@@ -62,7 +64,7 @@ VkPipelineLayout   g_vkPipelineLayout = VK_NULL_HANDLE;
 // Instance creation helpers
 //----------------------------------------------------------------------------
 
-static VkPhysicalDeviceFeatures GetRequiredDeviceFeatures()
+VkPhysicalDeviceFeatures GetRequiredDeviceFeatures()
 {
     VkPhysicalDeviceFeatures features = {};
     features.samplerAnisotropy = VK_TRUE;
@@ -71,7 +73,9 @@ static VkPhysicalDeviceFeatures GetRequiredDeviceFeatures()
     return features;
 }
 
-static VkBool32 IsDeviceSuitable( VkPhysicalDevice device )
+// Pre-surface device suitability: checks features and extensions only.
+// Must be called BEFORE g_vkSurface is created (during device enumeration).
+static VkBool32 IsDeviceSuitablePreSurface( VkPhysicalDevice device )
 {
     VkPhysicalDeviceProperties props;
     VkPhysicalDeviceFeatures features;
@@ -114,7 +118,14 @@ static VkBool32 IsDeviceSuitable( VkPhysicalDevice device )
             return VK_FALSE;
     }
 
-    // Check swapchain adequacy
+    return VK_TRUE;
+}
+
+// Post-surface device suitability: checks surface-related capabilities.
+// Must be called AFTER g_vkSurface is created.
+VkBool32 IsDeviceSuitablePostSurface( VkPhysicalDevice device )
+{
+    // Check swapchain format support
     uint32_t formatCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR( device, g_vkSurface, &formatCount, nullptr );
     if ( formatCount == 0 )
@@ -142,7 +153,17 @@ static VkBool32 IsDeviceSuitable( VkPhysicalDevice device )
     return VK_FALSE;
 }
 
-static uint32_t FindQueueFamily( VkPhysicalDevice device )
+VkBool32 IsDeviceSuitable( VkPhysicalDevice device )
+{
+    // This function is kept for API compatibility.
+    // Pre-surface checks happen during enumeration; post-surface checks
+    // are done separately after surface creation.
+    return IsDeviceSuitablePreSurface( device );
+}
+
+// Find a queue family that supports graphics + present.
+// Must be called AFTER g_vkSurface is created.
+uint32_t FindGraphicsAndPresentQueueFamily( VkPhysicalDevice device )
 {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties( device, &queueFamilyCount, nullptr );
@@ -154,6 +175,24 @@ static uint32_t FindQueueFamily( VkPhysicalDevice device )
         VkBool32 presentSupport = VK_FALSE;
         vkGetPhysicalDeviceSurfaceSupportKHR( device, i, g_vkSurface, &presentSupport );
         if ( queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT && presentSupport )
+            return i;
+    }
+    ASSERT(0);
+    return 0;
+}
+
+// Find a queue family that supports graphics only (no present check).
+// Can be called BEFORE g_vkSurface is created.
+static uint32_t FindGraphicsQueueFamily( VkPhysicalDevice device )
+{
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties( device, &queueFamilyCount, nullptr );
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties( device, &queueFamilyCount, queueFamilies.data() );
+
+    for ( uint32_t i = 0; i < queueFamilyCount; i++ )
+    {
+        if ( queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
             return i;
     }
     ASSERT(0);
@@ -201,7 +240,7 @@ static VkPresentModeKHR SelectPresentMode()
 
     // Check vsync cvar: MAILBOX when vsync disabled, FIFO when enabled
     const cvar_t* vsyncCvar = ri.Cvar_Get( "r_vulkanVsync", "1", CVAR_ARCHIVE );
-    qboolean wantVsync = vsyncCvar && vsyncCvar->integer != 0;
+    qboolean wantVsync = (qboolean)(vsyncCvar && vsyncCvar->integer != 0);
 
     if ( wantVsync )
     {
@@ -592,6 +631,9 @@ void VKDRV_CreateSyncObjects()
         VK_CHECK( vkCreateSemaphore( g_vkDevice, &semaphoreInfo, nullptr, &g_vkRenderFinishedSemaphores[i] ) );
         VK_CHECK( vkCreateFence( g_vkDevice, &fenceInfo, nullptr, &g_vkInFlightFences[i] ) );
     }
+
+    // Dedicated fence for transfer command buffer (avoids deadlock with render fence)
+    VK_CHECK( vkCreateFence( g_vkDevice, &fenceInfo, nullptr, &g_vkTransferFence ) );
 }
 
 void VKDRV_DestroySyncObjects()
@@ -601,6 +643,11 @@ void VKDRV_DestroySyncObjects()
         vkDestroySemaphore( g_vkDevice, g_vkImageAvailableSemaphores[i], nullptr );
         vkDestroySemaphore( g_vkDevice, g_vkRenderFinishedSemaphores[i], nullptr );
         vkDestroyFence( g_vkDevice, g_vkInFlightFences[i], nullptr );
+    }
+    if ( g_vkTransferFence )
+    {
+        vkDestroyFence( g_vkDevice, g_vkTransferFence, nullptr );
+        g_vkTransferFence = VK_NULL_HANDLE;
     }
 }
 
@@ -909,26 +956,31 @@ void VKDRV_EndCommandBuffer( VkCommandBuffer cmdBuffer )
     vkEndCommandBuffer( cmdBuffer );
 }
 
-void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait )
+void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait, qboolean isTransfer )
 {
-    // For ad-hoc transfers (image upload, cinematic update, readback):
-    // Only wait on the in-flight fence, no semaphore synchronization needed
-    vkWaitForFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX );
-    vkResetFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame] );
+    // Use the appropriate fence to avoid deadlock: transfer submissions must
+    // NOT wait on the in-flight render fence, since the render fence can't
+    // signal until the primary command buffer finishes, which would be blocked
+    // waiting for the transfer to complete.
+    VkFence fenceToUse = isTransfer ? g_vkTransferFence : g_vkInFlightFences[g_vkCurrentFrame];
+
+    // Wait for the previous use of this fence before reusing it
+    vkWaitForFences( g_vkDevice, 1, &fenceToUse, VK_TRUE, UINT64_MAX );
+    vkResetFences( g_vkDevice, 1, &fenceToUse );
 
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
-    VK_CHECK( vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, g_vkInFlightFences[g_vkCurrentFrame] ) );
+    VK_CHECK( vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, fenceToUse ) );
 
     // When wait is true, block until the transfer completes before returning.
     // This is required for readback operations (ReadPixels, ReadDepth, ReadStencil)
     // to ensure the GPU has finished copying data before the CPU reads it.
     if ( wait )
     {
-        vkWaitForFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX );
+        vkWaitForFences( g_vkDevice, 1, &fenceToUse, VK_TRUE, UINT64_MAX );
     }
 }
 

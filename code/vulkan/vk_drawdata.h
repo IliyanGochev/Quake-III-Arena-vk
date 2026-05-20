@@ -17,6 +17,12 @@ void DestroyViewRenderData( vkViewRenderData_t* vrd );
 void InitTessBuffers( vkTessBuffers_t* tess );
 void DestroyTessBuffers( vkTessBuffers_t* tess );
 
+void InitFogRenderData( vkFogRenderData_t* frd );
+void DestroyFogRenderData( vkFogRenderData_t* frd );
+
+void InitLightmapRenderData( vkLightmapRenderData_t* lrd );
+void DestroyLightmapRenderData( vkLightmapRenderData_t* lrd );
+
 // Circular buffer helpers
 void vkCircularBufferInit( vkCircularBuffer_t* cb, VkDeviceSize size );
 void vkCircularBufferDestroy( vkCircularBuffer_t* cb );

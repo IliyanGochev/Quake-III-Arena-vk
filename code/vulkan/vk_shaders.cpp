@@ -1,5 +1,12 @@
 #include "vk_common.h"
 #include "vk_state.h"
+#include "vk_shaders.h"
+
+// Forward declarations for Q_strlcpy/Q_strlcat (defined in vk_init.cpp)
+extern "C" {
+    size_t Q_strlcpy( char* dst, const char* src, size_t size );
+    size_t Q_strlcat( char* dst, const char* src, size_t size );
+}
 
 //----------------------------------------------------------------------------
 // SPIR-V shader loading from compiled files
@@ -39,7 +46,7 @@ VkShaderModule LoadShaderModule( const char* name )
     // Read file
     int fileSize;
     byte* fileData = nullptr;
-    fileData = (byte*)ri.FS_ReadFile( path, &fileSize );
+    fileSize = ri.FS_ReadFile( path, (void**)&fileData );
     if ( !fileData )
     {
         ri.Printf( PRINT_DEVELOPER, "WARNING: Could not load shader: %s\n", path );

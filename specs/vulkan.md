@@ -15,8 +15,8 @@ The target is a fully functional, frame-correct Vulkan driver that can render th
 
 **In scope**
 - Full implementation of every entry point in the engine's graphics driver interface
-- Vulkan 1.1 as the minimum API version (1.2/1.3 features used where available via feature detection)
-- Windows (Win32 surface), Linux (XCB/Xlib surface), and macOS (Metal via MoltenVK) platform targets
+- Vulkan 1.1 as the minimum API version (1.2/1.3 features used where available via feature detection). Current installed VulkanSDK is 1.4
+- Windows (Win32 surface) platform target
 - Shader compilation: GLSL → SPIR-V via `glslangValidator` / `shaderc` at build time; no runtime GLSL compilation
 - Runtime pipeline cache (serialized to disk, keyed by pipeline state hash)
 - Validation layer integration in debug builds

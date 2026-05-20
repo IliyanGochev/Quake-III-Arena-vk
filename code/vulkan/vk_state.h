@@ -152,6 +152,17 @@ struct vkGenericStageRenderData_t {
     VkPipeline      pipelineCache[VK_DEPTHSTATE_COUNT * VK_RASTERIZER_COUNT * VK_BLENDSTATE_COUNT * VK_ALPHATEST_COUNT];
 };
 
+// Render data for fog volume rendering
+struct vkFogRenderData_t {
+    VkPipeline      pipeline;       // regular fog (src_alpha/one_minus_src_alpha blend)
+    VkPipeline      additivePipeline; // additive fog (one/one blend)
+};
+
+// Render data for lightmap debug visualization
+struct vkLightmapRenderData_t {
+    VkPipeline      pipeline;
+};
+
 // @pjb: circular buffer for tessellation data
 struct vkCircularBuffer_t {
     VkBuffer        buffer;
@@ -199,6 +210,8 @@ struct vkDrawState_t {
 
     vkTessBuffers_t         tessBufs;
     vkGenericStageRenderData_t genericStage;
+   vkFogRenderData_t       fogRenderData;
+    vkLightmapRenderData_t  lightmapRenderData;
 
     // Cached pipeline states (selected by bitmask)
     VkPipeline              depthPipelines[VK_DEPTHSTATE_COUNT];

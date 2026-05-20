@@ -1,6 +1,12 @@
 #ifndef __VK_COMMON_H__
 #define __VK_COMMON_H__
 
+#define VK_USE_PLATFORM_WIN32_KHR
+
+// Forward declaration to break circular include (vk_state.h includes vk_common.h).
+// Full definition is in vk_state.h, included by the .cpp files that need it.
+struct vkImage_t;
+
 extern "C" {
 #   include "../renderer/tr_local.h"
 #   include "../renderer/tr_layer.h"
@@ -85,6 +91,7 @@ extern VkCommandBuffer    g_vkCommandBuffers[VK_MAX_FRAMES_IN_FLIGHT];
 // reset the primary render command buffer during a frame)
 extern VkCommandPool      g_vkTransferCommandPool;
 extern VkCommandBuffer    g_vkTransferCommandBuffer;
+extern VkFence            g_vkTransferFence;
 
 // Descriptor pool & layout
 extern VkDescriptorPool   g_vkDescriptorPool;
@@ -114,9 +121,20 @@ extern VkSurfaceKHR       g_vkSurface;
 extern VkSampler          g_vkSamplerClamp;
 extern VkSampler          g_vkSamplerRepeat;
 
+// Gamma LUT (set by VKDrv_SetGamma, applied during texture upload)
+extern unsigned char      g_vkGammaTable[256];
+
+// Pipeline layout (defined in vk_state.cpp, needed by descriptor system)
+extern VkPipelineLayout   g_vkPipelineLayout;
+
 //----------------------------------------------------------------------------
 // Internal device helper declarations (from vk_device.cpp)
 //----------------------------------------------------------------------------
+
+VkBool32 IsDeviceSuitable( VkPhysicalDevice device );
+VkBool32 IsDeviceSuitablePostSurface( VkPhysicalDevice device );
+uint32_t FindGraphicsAndPresentQueueFamily( VkPhysicalDevice device );
+VkPhysicalDeviceFeatures GetRequiredDeviceFeatures();
 
 void VKDRV_Init();
 void VKDRV_Shutdown();
@@ -149,7 +167,7 @@ void VKDRV_DestroySamplers();
 void VKDRV_CreateDescriptorSystem();
 void VKDRV_DestroyDescriptorSystem();
 void VKDRV_PopulateDescriptorSets();
-void VKDRV_UpdateTextureDescriptors( const vkImage_t* tex0, const vkImage_t* tex1 );
+void VKDRV_UpdateTextureDescriptors( const struct vkImage_t* tex0, const struct vkImage_t* tex1 );
 
 void VKDRV_SetDebugObjectName( uint64_t object, VkObjectType type, const char* name );
 void VKDRV_BeginDebugLabel( VkCommandBuffer cmd, const char* label );
@@ -158,7 +176,7 @@ void VKDRV_EndDebugLabel( VkCommandBuffer cmd );
 void VKDRV_BeginFrame();
 VkCommandBuffer VKDRV_BeginCommandBuffer();
 void VKDRV_EndCommandBuffer( VkCommandBuffer cmdBuffer );
-void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait );
+void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait, qboolean isTransfer );
 void VKDRV_AcquireNextImage();
 void VKDRV_SubmitAndPresent();
 

@@ -1,3 +1,4 @@
+#define VMA_IMPLEMENTATION
 #include "vk_common.h"
 #include "vk_driver.h"
 #include "vk_state.h"
@@ -8,6 +9,37 @@
 #include "../win32/win_vk.h"
 
 #include <vector>
+
+// Forward declarations for engine string functions (available via qcommon.h but
+// not always visible in C++ translation units that include vk_common.h)
+// If not available from the engine, provide our own implementations.
+extern "C" {
+    size_t Q_strlcpy( char* dst, const char* src, size_t size )
+    {
+        if ( size == 0 ) return 0;
+        size_t srcLen = 0;
+        while ( src[srcLen] != '\0' ) srcLen++;
+        size_t copyLen = ( srcLen < size - 1 ) ? srcLen : size - 1;
+        memcpy( dst, src, copyLen );
+        dst[copyLen] = '\0';
+        return srcLen;
+    }
+
+    size_t Q_strlcat( char* dst, const char* src, size_t size )
+    {
+        size_t dstLen = 0;
+        while ( dst[dstLen] != '\0' && dstLen < size ) dstLen++;
+        if ( dstLen == 0 ) return dstLen; // empty dst, nothing to concat
+        size_t srcLen = 0;
+        while ( src[srcLen] != '\0' ) srcLen++;
+        size_t available = size - dstLen;
+        if ( available == 0 ) return dstLen + srcLen;
+        size_t copyLen = ( srcLen < available - 1 ) ? srcLen : available - 1;
+        memcpy( dst + dstLen, src, copyLen );
+        dst[dstLen + copyLen] = '\0';
+        return dstLen + srcLen;
+    }
+}
 
 // Debug messenger handle
 static VkDebugUtilsMessengerEXT g_vkDebugMessenger = VK_NULL_HANDLE;
@@ -162,7 +194,7 @@ size_t VKDrv_LastError( void )
 //----------------------------------------------------------------------------
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
-    VkDebugUtilsMessageSeverityFlagEXT severity,
+    VkDebugUtilsMessageSeverityFlagsEXT severity,
     VkDebugUtilsMessageTypeFlagsEXT types,
     const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
     void* userData )
@@ -189,8 +221,8 @@ static void VKDRV_CreateDebugMessenger()
     return;
 #endif
 
-    PFN_vkCreateDebugUtilsMessengerEXT pfnCreate = (PFN_vkCreateDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr( g_vkInstance, "vkCreateDebugUtilsMessengerEXT" );
+    PFN_vkCreateDebugUtilsMessengerEXT pfnCreate = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+        vkGetInstanceProcAddr( g_vkInstance, "vkCreateDebugUtilsMessengerEXT" ));
     if ( !pfnCreate )
         return;
 
@@ -201,7 +233,7 @@ static void VKDRV_CreateDebugMessenger()
     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    createInfo.pfnUserCallback = DebugMessengerCallback;
+    createInfo.pfnUserCallback = reinterpret_cast<PFN_vkDebugUtilsMessengerCallbackEXT>( DebugMessengerCallback );
 
     pfnCreate( g_vkInstance, &createInfo, nullptr, &g_vkDebugMessenger );
 }
@@ -211,8 +243,8 @@ static void VKDRV_DestroyDebugMessenger()
     if ( !g_vkDebugMessenger )
         return;
 
-    PFN_vkDestroyDebugUtilsMessengerEXT pfnDestroy = (PFN_vkDestroyDebugUtilsMessengerEXT)
-        vkGetInstanceProcAddr( g_vkInstance, "vkDestroyDebugUtilsMessengerEXT" );
+    PFN_vkDestroyDebugUtilsMessengerEXT pfnDestroy = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+        vkGetInstanceProcAddr( g_vkInstance, "vkDestroyDebugUtilsMessengerEXT" ));
     if ( pfnDestroy )
     {
         pfnDestroy( g_vkInstance, g_vkDebugMessenger, nullptr );
@@ -223,6 +255,16 @@ static void VKDRV_DestroyDebugMessenger()
 //----------------------------------------------------------------------------
 // Pipeline cache serialization (issue #13)
 //----------------------------------------------------------------------------
+
+// Pipeline cache file format with device/driver version tracking (spec §6.3)
+struct VkPipelineCacheHeader {
+    uint32_t magic;        // 0x564B4348 ("VKCH")
+    uint32_t version;      // cache format version
+    uint32_t driverVersion; // driver version at cache creation
+    uint32_t deviceID;     // physical device ID
+    uint32_t reserved;     // padding to 32-byte alignment
+    uint64_t cacheDataSize; // size of Vulkan pipeline cache data following
+};
 
 static void VKDRV_LoadPipelineCache()
 {
@@ -235,13 +277,48 @@ static void VKDRV_LoadPipelineCache()
     char cachePath[MAX_QPATH];
     Q_strlcpy( cachePath, "vk_pipeline_cache.bin", sizeof(cachePath) );
 
+    // Get current device properties for cache validation
+    VkPhysicalDeviceProperties curProps = {};
+    vkGetPhysicalDeviceProperties( g_vkPhysicalDevice, &curProps );
+
     int fileSize;
-    byte* cacheData = (byte*)ri.FS_ReadFile( cachePath, &fileSize );
-    if ( cacheData && fileSize > 0 )
+    byte* fileData = nullptr;
+    fileSize = ri.FS_ReadFile( cachePath, (void**)&fileData );
+    if ( fileData && fileSize > 0 )
     {
-        cacheInfo.initialDataSize = fileSize;
-        cacheInfo.pInitialData = cacheData;
-        ri.Printf( PRINT_DEVELOPER, "Vulkan: Loading pipeline cache (%d bytes)\n", fileSize );
+        // Validate header
+        if ( fileSize >= (int)sizeof(VkPipelineCacheHeader) )
+        {
+            VkPipelineCacheHeader* header = (VkPipelineCacheHeader*)fileData;
+            if ( header->magic != 0x564B4348u )
+            {
+                ri.Printf( PRINT_DEVELOPER, "Vulkan: Pipeline cache has invalid magic, discarding\n" );
+            }
+            else if ( header->deviceID != curProps.deviceID ||
+                      header->driverVersion != curProps.driverVersion )
+            {
+                ri.Printf( PRINT_DEVELOPER, "Vulkan: Pipeline cache device/driver mismatch, discarding\n" );
+            }
+            else
+            {
+                // Valid cache: use data after the header
+                size_t cacheDataSize = fileSize - sizeof(VkPipelineCacheHeader);
+                if ( cacheDataSize > 0 && header->cacheDataSize == (uint64_t)cacheDataSize )
+                {
+                    cacheInfo.initialDataSize = cacheDataSize;
+                    cacheInfo.pInitialData = fileData + sizeof(VkPipelineCacheHeader);
+                    ri.Printf( PRINT_DEVELOPER, "Vulkan: Loading pipeline cache (%zu bytes)\n", cacheDataSize );
+                }
+                else
+                {
+                    ri.Printf( PRINT_DEVELOPER, "Vulkan: Pipeline cache size mismatch, discarding\n" );
+                }
+            }
+        }
+        else
+        {
+            ri.Printf( PRINT_DEVELOPER, "Vulkan: Pipeline cache file too small, discarding\n" );
+        }
     }
 
     if ( vkCreatePipelineCache( g_vkDevice, &cacheInfo, nullptr, &g_vkPipelineCache ) != VK_SUCCESS )
@@ -252,9 +329,9 @@ static void VKDRV_LoadPipelineCache()
         vkCreatePipelineCache( g_vkDevice, &cacheInfo, nullptr, &g_vkPipelineCache );
     }
 
-    if ( cacheData )
+    if ( fileData )
     {
-        ri.Free( cacheData );
+        ri.Free( fileData );
     }
 }
 
@@ -268,13 +345,30 @@ static void VKDRV_SavePipelineCache()
     if ( cacheSize == 0 )
         return;
 
-    byte* cacheData = (byte*)ri.Malloc( cacheSize );
-    vkGetPipelineCacheData( g_vkDevice, g_vkPipelineCache, &cacheSize, cacheData );
+    // Get current device properties for header
+    VkPhysicalDeviceProperties curProps = {};
+    vkGetPhysicalDeviceProperties( g_vkPhysicalDevice, &curProps );
 
-    ri.FS_WriteFile( "vk_pipeline_cache.bin", (const char*)cacheData, cacheSize );
-    ri.Printf( PRINT_DEVELOPER, "Vulkan: Saved pipeline cache (%zu bytes)\n", cacheSize );
+    // Allocate space for header + cache data
+    size_t totalSize = sizeof(VkPipelineCacheHeader) + cacheSize;
+    byte* fileData = (byte*)ri.Malloc( totalSize );
 
-    ri.Free( cacheData );
+    // Write header
+    VkPipelineCacheHeader* header = (VkPipelineCacheHeader*)fileData;
+    header->magic = 0x564B4348u;
+    header->version = 1;
+    header->driverVersion = curProps.driverVersion;
+    header->deviceID = curProps.deviceID;
+    header->reserved = 0;
+    header->cacheDataSize = cacheSize;
+
+    // Copy cache data after header
+    vkGetPipelineCacheData( g_vkDevice, g_vkPipelineCache, &cacheSize, fileData + sizeof(VkPipelineCacheHeader) );
+
+    ri.FS_WriteFile( "vk_pipeline_cache.bin", (const char*)fileData, totalSize );
+    ri.Printf( PRINT_DEVELOPER, "Vulkan: Saved pipeline cache (%zu bytes data)\n", cacheSize );
+
+    ri.Free( fileData );
 
     vkDestroyPipelineCache( g_vkDevice, g_vkPipelineCache, nullptr );
     g_vkPipelineCache = VK_NULL_HANDLE;
@@ -294,7 +388,13 @@ static cvar_t* r_vulkanDumpPipelines = nullptr;
 void VKDRV_Init()
 {
     // Register Vulkan-specific CVARs
-    r_vulkanValidation = ri.Cvar_Get( "r_vulkanValidation", "0", CVAR_ARCHIVE );
+    r_vulkanValidation = ri.Cvar_Get( "r_vulkanValidation",
+#ifdef DEBUG
+        "1",
+#else
+        "0",
+#endif
+        CVAR_ARCHIVE );
     r_vulkanVsync = ri.Cvar_Get( "r_vulkanVsync", "1", CVAR_ARCHIVE );
     r_vulkanAnisotropy = ri.Cvar_Get( "r_vulkanAnisotropy", "8", CVAR_ARCHIVE );
     r_vulkanFrameOverlap = ri.Cvar_Get( "r_vulkanFrameOverlap", "2", CVAR_ARCHIVE );
@@ -327,7 +427,7 @@ void VKDRV_Init()
     instanceInfo.ppEnabledExtensionNames = instanceExtensions;
 
 #ifdef DEBUG
-    // Enable validation layers when cvar is set (default on in debug builds)
+    // Enable validation layers (enabled by default in debug builds, controlled by cvar)
     if ( r_vulkanValidation->integer != 0 )
     {
         const char* const validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
@@ -349,20 +449,7 @@ void VKDRV_Init()
     // Create debug messenger (debug builds)
     VKDRV_CreateDebugMessenger();
 
-    // 2. Create window and surface
-    VKWnd_Init( (int)vdConfig.vidWidth, (int)vdConfig.vidHeight, r_fullscreen->integer != 0 );
-    HWND hwnd = VKWnd_GetWindowHandle();
-    if ( !hwnd )
-    {
-        ri.Error( ERR_FATAL, "Vulkan: Failed to create window\n" );
-    }
-    g_vkSurface = VKWin_CreateSurface( g_vkInstance, hwnd );
-    if ( !g_vkSurface )
-    {
-        ri.Error( ERR_FATAL, "Vulkan: Failed to create window surface\n" );
-    }
-
-    // 3. Select physical device
+    // 2. Select physical device (pre-surface: features + extensions only)
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices( g_vkInstance, &deviceCount, nullptr );
     ASSERT( deviceCount > 0 );
@@ -379,8 +466,27 @@ void VKDRV_Init()
     }
     ASSERT( g_vkPhysicalDevice != VK_NULL_HANDLE );
 
-    // 4. Create logical device with required extensions
-    uint32_t queueFamilyIndex = FindQueueFamily( g_vkPhysicalDevice );
+    // 3. Create window and surface
+    VKWnd_Init( (int)vdConfig.vidWidth, (int)vdConfig.vidHeight, r_fullscreen->integer != 0 );
+    HWND hwnd = VKWnd_GetWindowHandle();
+    if ( !hwnd )
+    {
+        ri.Error( ERR_FATAL, "Vulkan: Failed to create window\n" );
+    }
+    g_vkSurface = VKWin_CreateSurface( g_vkInstance, hwnd );
+    if ( !g_vkSurface )
+    {
+        ri.Error( ERR_FATAL, "Vulkan: Failed to create window surface\n" );
+    }
+
+    // 4. Post-surface suitability check: verify surface support
+    if ( !IsDeviceSuitablePostSurface( g_vkPhysicalDevice ) )
+    {
+        ri.Error( ERR_FATAL, "Vulkan: Selected device does not support the created surface\n" );
+    }
+
+    // 5. Create logical device with required extensions
+    uint32_t queueFamilyIndex = FindGraphicsAndPresentQueueFamily( g_vkPhysicalDevice );
     float queuePriority = 1.0f;
 
     VkDeviceQueueCreateInfo queueCreateInfo = {};
@@ -419,6 +525,11 @@ void VKDRV_Init()
 
         for ( uint32_t i = 0; i < sizeof(deviceExtensionsOptional) / sizeof(deviceExtensionsOptional[0]); i++ )
         {
+            if ( deviceExtensionCount >= 31 )
+            {
+                ri.Printf( PRINT_WARNING, "Vulkan: Extension list full, skipping optional extensions\n" );
+                break;
+            }
             for ( uint32_t j = 0; j < extCount; j++ )
             {
                 if ( Q_stricmp( deviceExtensionsOptional[i], extProps[j].extensionName ) == 0 )
@@ -436,7 +547,8 @@ void VKDRV_Init()
     deviceInfo.pQueueCreateInfos = &queueCreateInfo;
     deviceInfo.enabledExtensionCount = deviceExtensionCount;
      deviceInfo.ppEnabledExtensionNames = deviceExtensionList;
-    deviceInfo.pEnabledFeatures = &GetRequiredDeviceFeatures();
+    VkPhysicalDeviceFeatures deviceFeatures = GetRequiredDeviceFeatures();
+    deviceInfo.pEnabledFeatures = &deviceFeatures;
 
     VK_CHECK( vkCreateDevice( g_vkPhysicalDevice, &deviceInfo, nullptr, &g_vkDevice ) );
 
@@ -461,60 +573,65 @@ void VKDRV_Init()
     }
 
     // Load debug utils function pointers (issue #5, #6)
-    g_vkCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)
-        vkGetDeviceProcAddr( g_vkDevice, "vkCmdBeginDebugUtilsLabelEXT" );
-    g_vkCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)
-        vkGetDeviceProcAddr( g_vkDevice, "vkCmdEndDebugUtilsLabelEXT" );
-    g_vkSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)
-        vkGetDeviceProcAddr( g_vkDevice, "vkSetDebugUtilsObjectNameEXT" );
+    g_vkCmdBeginDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
+        vkGetDeviceProcAddr( g_vkDevice, "vkCmdBeginDebugUtilsLabelEXT" ));
+    g_vkCmdEndDebugUtilsLabelEXT = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
+        vkGetDeviceProcAddr( g_vkDevice, "vkCmdEndDebugUtilsLabelEXT" ));
+    g_vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+        vkGetDeviceProcAddr( g_vkDevice, "vkSetDebugUtilsObjectNameEXT" ));
 
-    // 5. Initialize VMA
-    VmaVulkanFunctions vmaVulkanFunctions = {};
-    vmaVulkanFunctions.vmaVersion = VMA_VK_VERSION_1_0;
+    // 6. Initialize VMA
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_1;
     allocatorInfo.physicalDevice = g_vkPhysicalDevice;
     allocatorInfo.device = g_vkDevice;
     allocatorInfo.instance = g_vkInstance;
-    allocatorInfo.pVulkanFunctions = &vmaVulkanFunctions;
+    VmaVulkanFunctions vmaFuncs = {};
+    vmaFuncs.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+    vmaFuncs.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+    allocatorInfo.pVulkanFunctions = &vmaFuncs;
     VK_CHECK( vmaCreateAllocator( &allocatorInfo, &g_vkAllocator ) );
 
-    // 6. Load pipeline cache from disk
+    // 7. Load pipeline cache from disk
     VKDRV_LoadPipelineCache();
 
-    // 7. Get display mode info and create swapchain
+    // 8. Get display mode info and create swapchain
     uint32_t width = (uint32_t)vdConfig.vidWidth;
     uint32_t height = (uint32_t)vdConfig.vidHeight;
     if ( width == 0 ) width = 1024;
     if ( height == 0 ) height = 768;
     VKDRV_CreateSwapchain( width, height );
 
-    // 8. Create depth/stencil target
+    // 9. Create depth/stencil target
     VKDRV_CreateDepthTarget( width, height );
 
-    // 9. Create render pass & framebuffers
+    // 10. Create render pass & framebuffers
     VKDRV_CreateRenderPass();
     VKDRV_CreateFramebuffers( g_vkSwapchainFormat, width, height );
 
-    // 10. Create command pool & command buffers
+    // 11. Create command pool & command buffers
     VKDRV_CreateCommandPool( queueFamilyIndex );
 
-    // 10b. Create dedicated transfer command buffer
+    // 11b. Create dedicated transfer command buffer
     VKDRV_CreateTransferCommandBuffer( queueFamilyIndex );
 
-    // 11. Create synchronization objects
+    // 12. Create synchronization objects
     VKDRV_CreateSyncObjects();
 
-    // 12. Create samplers
+    // 13. Create samplers
     VKDRV_CreateSamplers();
 
-    // 13. Create descriptor system
+    // 14. Create descriptor system
     VKDRV_CreateDescriptorSystem();
 
-    // 14. Initialize all draw state
+    // Initialize gamma table to identity (will be overwritten by engine's R_InitImages)
+    for ( int i = 0; i < 256; i++ )
+        g_vkGammaTable[i] = (unsigned char)i;
+
+    // 15. Initialize all draw state
     InitDrawState();
 
-    // 15. Populate descriptor sets with buffer references (after all buffers created)
+    // 16. Populate descriptor sets with buffer references (after all buffers created)
     VKDRV_PopulateDescriptorSets();
 }
 

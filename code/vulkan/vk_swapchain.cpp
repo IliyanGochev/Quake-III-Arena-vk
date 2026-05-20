@@ -141,8 +141,8 @@ void VKDrv_SetDepthRange( float minRange, float maxRange )
     g_vkRunState.vsConstants.depthRange[1] = maxRange;
     g_vkRunState.vsDirtyConstants = qtrue;
 
-    VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
-    vkCmdSetDepthRange( cmd, minRange, maxRange );
+    // vkCmdSetDepthRange was removed in Vulkan 1.1+; depth range is now
+    // baked into the pipeline. The values above are used by the vertex shader.
 }
 
 //----------------------------------------------------------------------------
@@ -223,13 +223,14 @@ void VKDrv_ReadPixels( int x, int y, int width, int height, imageFormat_t reques
     subresourceRange.baseArrayLayer = 0;
     subresourceRange.layerCount = 1;
 
-    // Transition swapchain image to SRC_OPTIMAL
+    // Transition swapchain image to GENERAL layout (allowed for swapchain images
+    // and supports transfer reads, unlike TRANSFER_SRC_OPTIMAL).
     VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = g_vkSwapchainImages[g_vkCurrentImageIndex];
@@ -251,7 +252,7 @@ void VKDrv_ReadPixels( int x, int y, int width, int height, imageFormat_t reques
     bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ACCESSIBLE;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufInfo, &allocInfo,
@@ -264,15 +265,15 @@ void VKDrv_ReadPixels( int x, int y, int width, int height, imageFormat_t reques
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageOffset = { (uint32_t)x, (uint32_t)y, 0 };
+    copyRegion.imageOffset = { (int32_t)x, (int32_t)y, 0 };
     copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
 
     vkCmdCopyImageToBuffer( cmd, g_vkSwapchainImages[g_vkCurrentImageIndex],
-                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             VK_IMAGE_LAYOUT_GENERAL,
                              stagingBuffer, 1, &copyRegion );
 
-    // Transition back
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    // Transition back to PRESENT_SRC_KHR
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -280,7 +281,7 @@ void VKDrv_ReadPixels( int x, int y, int width, int height, imageFormat_t reques
                            0, 0, nullptr, 0, nullptr, 1, &barrier );
 
     VKDRV_EndCommandBuffer( cmd );
-    VKDRV_SubmitCommandBuffer( cmd, qtrue ); // wait for transfer before reading
+    VKDRV_SubmitCommandBuffer( cmd, qtrue, qtrue ); // wait for transfer before reading
 
     // Copy from mapped memory with BGR→RGB conversion if needed.
     // Swapchain is B8G8R8A8 but engine expects RGBA ordering.
@@ -335,7 +336,7 @@ void VKDrv_ReadDepth( int x, int y, int width, int height, float* dest )
     bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ACCESSIBLE;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufInfo, &allocInfo,
@@ -363,14 +364,14 @@ void VKDrv_ReadDepth( int x, int y, int width, int height, float* dest )
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageOffset = { (uint32_t)x, (uint32_t)y, 0 };
+    copyRegion.imageOffset = { (int32_t)x, (int32_t)y, 0 };
     copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
 
     vkCmdCopyImageToBuffer( cmd, g_vkDepthImage, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                              stagingBuffer, 1, &copyRegion );
 
     VKDRV_EndCommandBuffer( cmd );
-    VKDRV_SubmitCommandBuffer( cmd, qtrue ); // wait for transfer before reading
+    VKDRV_SubmitCommandBuffer( cmd, qtrue, qtrue ); // wait for transfer before reading
 
     void* mapped;
     vmaMapMemory( g_vkAllocator, stagingAllocation, &mapped );
@@ -404,7 +405,7 @@ void VKDrv_ReadStencil( int x, int y, int width, int height, byte* dest )
     bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ACCESSIBLE;
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufInfo, &allocInfo,
@@ -432,14 +433,14 @@ void VKDrv_ReadStencil( int x, int y, int width, int height, byte* dest )
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageOffset = { (uint32_t)x, (uint32_t)y, 0 };
+    copyRegion.imageOffset = { (int32_t)x, (int32_t)y, 0 };
     copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
 
     vkCmdCopyImageToBuffer( cmd, g_vkDepthImage, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                              stagingBuffer, 1, &copyRegion );
 
     VKDRV_EndCommandBuffer( cmd );
-    VKDRV_SubmitCommandBuffer( cmd, qtrue ); // wait for transfer before reading
+    VKDRV_SubmitCommandBuffer( cmd, qtrue, qtrue ); // wait for transfer before reading
 
     void* mapped;
     vmaMapMemory( g_vkAllocator, stagingAllocation, &mapped );
@@ -453,11 +454,24 @@ void VKDrv_ReadStencil( int x, int y, int width, int height, byte* dest )
 // VKDrv_SetGamma
 //----------------------------------------------------------------------------
 
+// Gamma LUT stored here for texture upload (Vulkan has no hardware gamma)
+// Defined in vk_common.h as extern; actual storage is here
+unsigned char g_vkGammaTable[256];
+
 void VKDrv_SetGamma( unsigned char red[256], unsigned char green[256], unsigned char blue[256] )
 {
-    // Per spec §11.6, gamma is baked into texture uploads via table-based
-    // approach matching the OpenGL driver. No GPU gamma LUT is needed.
-    (void)red; (void)green; (void)blue;
+    // Per spec §11.6, replicate the OpenGL driver's table-based gamma approach.
+    // The engine applies s_intensitytable (overbright) during R_LoadImage,
+    // then passes s_gammatable via GFX_SetGamma. We store the gamma table
+    // and apply it during texture upload since Vulkan has no hardware gamma.
+    if ( red )
+        Com_Memcpy( g_vkGammaTable, red, sizeof( g_vkGammaTable ) );
+    else
+    {
+        // Identity fallback
+        for ( int i = 0; i < 256; i++ )
+            g_vkGammaTable[i] = (unsigned char)i;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -469,7 +483,7 @@ int VKDrv_GetFrameImageMemoryUsage( void )
     // Return approximate memory usage tracked by VMA
     VmaTotalStatistics stats;
     vmaCalculateStatistics( g_vkAllocator, &stats );
-    return (int)(stats.total.blockBytes / (1024 * 1024)); // MB
+    return (int)(stats.total.statistics.blockBytes / (1024 * 1024)); // MB
 }
 
 //----------------------------------------------------------------------------
@@ -537,6 +551,14 @@ void VKDrv_ShadowFinish( void )
     // Uses the dedicated shadow pipeline with proper stencil state.
     int vertCount = g_vkShadowEdgeCount * 4;
     float* shadowVerts = (float*)ri.Malloc( vertCount * sizeof(vec4_t) );
+    if ( !shadowVerts )
+    {
+        ri.Printf( PRINT_WARNING, "Vulkan: Out of memory in VKDrv_ShadowFinish\n" );
+        ri.Free( g_vkShadowEdges );
+        g_vkShadowEdges = nullptr;
+        g_vkShadowEdgeCount = 0;
+        return;
+    }
 
     // Extrude far enough to cover the view frustum.
     // Vertices are in view space; extrude along view direction (+Z = away).
@@ -571,7 +593,7 @@ void VKDrv_ShadowFinish( void )
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
 
     // Set stencil reference for shadow volume rendering
-    vkCmdSetStencilReference( cmd, VK_FRONT_AND_BACK, 1 );
+    vkCmdSetStencilReference( cmd, VK_STENCIL_FRONT_AND_BACK, 1 );
 
     // Draw shadow volume quads using the dedicated shadow pipeline
     vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkDrawState.quadRenderData.shadowPipeline );
@@ -584,7 +606,7 @@ void VKDrv_ShadowFinish( void )
     vkCmdDraw( cmd, vertCount, 1, 0, 0 );
 
     // Reset stencil reference after shadow rendering
-    vkCmdSetStencilReference( cmd, VK_FRONT_AND_BACK, 0 );
+    vkCmdSetStencilReference( cmd, VK_STENCIL_FRONT_AND_BACK, 0 );
 
     ri.Free( g_vkShadowEdges );
     g_vkShadowEdges = nullptr;

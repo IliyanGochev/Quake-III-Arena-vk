@@ -18,8 +18,10 @@ void vkCircularBufferInit( vkCircularBuffer_t* cb, VkDeviceSize size )
     allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    VmaAllocationInfo allocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufferInfo, &allocInfo,
-                                &cb->buffer, &cb->allocation, &cb->mappedData ) );
+                                &cb->buffer, &cb->allocation, &allocInfoOut ) );
+    cb->mappedData = allocInfoOut.pMappedData;
     cb->currentOffset = 0;
     cb->nextOffset = 0;
     cb->size = (unsigned)size;
@@ -95,11 +97,11 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
     vallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     vallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-    void* vertexMapped = nullptr;
+    VmaAllocationInfo vallocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &vbufInfo, &vallocInfo,
                                 &qrd->vertexBuffer, &qrd->vertexAllocation,
-                                &vertexMapped ) );
-    memcpy( vertexMapped, g_quadVertices, vertexSize );
+                                &vallocInfoOut ) );
+    memcpy( vallocInfoOut.pMappedData, g_quadVertices, vertexSize );
 
     // Index buffer
     VkDeviceSize indexSize = sizeof( g_quadIndices );
@@ -113,10 +115,10 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
     iallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     iallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-    void* indexData = nullptr;
+    VmaAllocationInfo iallocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &ibufInfo, &iallocInfo,
-                                &qrd->indexBuffer, &qrd->indexAllocation, &indexData ) );
-    memcpy( indexData, g_quadIndices, indexSize );
+                                &qrd->indexBuffer, &qrd->indexAllocation, &iallocInfoOut ) );
+    memcpy( iallocInfoOut.pMappedData, g_quadIndices, indexSize );
 
     // Uniform buffer (color)
     VkBufferCreateInfo ubufInfo = {};
@@ -129,9 +131,11 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
     uallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     uallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    VmaAllocationInfo uallocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &ubufInfo, &uallocInfo,
                                 &qrd->uniformBuffer, &qrd->uniformAllocation,
-                                (void**)&qrd->uniformData ) );
+                                &uallocInfoOut ) );
+    qrd->uniformData = (vkQuadUniformBuffer_t*)uallocInfoOut.pMappedData;
     qrd->uniformData->color[0] = 1;
     qrd->uniformData->color[1] = 1;
     qrd->uniformData->color[2] = 1;
@@ -158,7 +162,7 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
     vi.vertexBindingDescriptionCount = 1;
     vi.pVertexBindingDescriptions = viBindings;
     vi.vertexAttributeDescriptionCount = 2;
-    vi.pVertexAttributes = viAttrs;
+    vi.pVertexAttributeDescriptions = viAttrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia = {};
     ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -236,7 +240,7 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
         dbgVi.vertexBindingDescriptionCount = 1;
         dbgVi.pVertexBindingDescriptions = dbgBindings;
         dbgVi.vertexAttributeDescriptionCount = 1;
-        dbgVi.pVertexAttributes = dbgAttrs;
+        dbgVi.pVertexAttributeDescriptions = dbgAttrs;
 
         VkPipelineRasterizationStateCreateInfo dbgRs = {};
         dbgRs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -281,7 +285,7 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
         shdVi.vertexBindingDescriptionCount = 1;
         shdVi.pVertexBindingDescriptions = shdBindings;
         shdVi.vertexAttributeDescriptionCount = 1;
-        shdVi.pVertexAttributes = shdAttrs;
+        shdVi.pVertexAttributeDescriptions = shdAttrs;
 
         VkPipelineRasterizationStateCreateInfo shdRs = {};
         shdRs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -299,16 +303,18 @@ void InitQuadRenderData( vkQuadRenderData_t* qrd )
         shdDs.depthWriteEnable = VK_FALSE;
         shdDs.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
         shdDs.stencilTestEnable = VK_TRUE;
-        shdDs.front.sFailOp = VK_STENCIL_OP_KEEP;
-        shdDs.front.dpFailOp = VK_STENCIL_OP_KEEP;
+        shdDs.front.failOp = VK_STENCIL_OP_KEEP;
+        shdDs.front.depthFailOp = VK_STENCIL_OP_KEEP;
         shdDs.front.passOp = VK_STENCIL_OP_INCREMENT_AND_WRAP;
         shdDs.front.compareOp = VK_COMPARE_OP_ALWAYS;
-        shdDs.back.sFailOp = VK_STENCIL_OP_KEEP;
-        shdDs.back.dpFailOp = VK_STENCIL_OP_KEEP;
+        shdDs.front.compareMask = 0xFF;
+        shdDs.front.writeMask = 0xFF;
+        shdDs.back.failOp = VK_STENCIL_OP_KEEP;
+        shdDs.back.depthFailOp = VK_STENCIL_OP_KEEP;
         shdDs.back.passOp = VK_STENCIL_OP_DECREMENT_AND_WRAP;
         shdDs.back.compareOp = VK_COMPARE_OP_ALWAYS;
-        shdDs.stencilCompareMask = 0xFF;
-        shdDs.stencilWriteMask = 0xFF;
+        shdDs.back.compareMask = 0xFF;
+        shdDs.back.writeMask = 0xFF;
         shdDs.minDepthBounds = 0.0f;
         shdDs.maxDepthBounds = 1.0f;
 
@@ -410,11 +416,11 @@ void InitSkyBoxRenderData( vkSkyBoxRenderData_t* rd )
     vallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     vallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-    void* skyboxVertexMapped = nullptr;
+    VmaAllocationInfo vallocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &vbufInfo, &vallocInfo,
                                 &rd->vertexBuffer, &rd->vertexAllocation,
-                                &skyboxVertexMapped ) );
-    memcpy( skyboxVertexMapped, g_skyboxVertices, vertexSize );
+                                &vallocInfoOut ) );
+    memcpy( vallocInfoOut.pMappedData, g_skyboxVertices, vertexSize );
 
     // VS uniform buffer
     VkBufferCreateInfo vsBufInfo = {};
@@ -427,9 +433,11 @@ void InitSkyBoxRenderData( vkSkyBoxRenderData_t* rd )
     vsAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     vsAllocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    VmaAllocationInfo vsAllocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &vsBufInfo, &vsAllocInfo,
                                 &rd->vsUniformBuffer, &rd->vsUniformAllocation,
-                                (void**)&rd->vsUniformData ) );
+                                &vsAllocInfoOut ) );
+    rd->vsUniformData = (vkSkyBoxVSUniformBuffer_t*)vsAllocInfoOut.pMappedData;
 
     // PS uniform buffer
     VkBufferCreateInfo psBufInfo = {};
@@ -442,9 +450,11 @@ void InitSkyBoxRenderData( vkSkyBoxRenderData_t* rd )
     psAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     psAllocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    VmaAllocationInfo psAllocInfoOut = {};
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &psBufInfo, &psAllocInfo,
                                 &rd->psUniformBuffer, &rd->psUniformAllocation,
-                                (void**)&rd->psUniformData ) );
+                                &psAllocInfoOut ) );
+    rd->psUniformData = (vkSkyBoxPSUniformBuffer_t*)psAllocInfoOut.pMappedData;
 
     // Pipeline
     VkShaderModule vsModule = LoadShaderModule( "skybox_vs" );
@@ -467,7 +477,7 @@ void InitSkyBoxRenderData( vkSkyBoxRenderData_t* rd )
     vi.vertexBindingDescriptionCount = 1;
     vi.pVertexBindingDescriptions = skyboxViBindings;
     vi.vertexAttributeDescriptionCount = 2;
-    vi.pVertexAttributes = skyboxViAttrs;
+    vi.pVertexAttributeDescriptions = skyboxViAttrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia = {};
     ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -575,7 +585,7 @@ void InitGenericStageRenderData( vkGenericStageRenderData_t* rd )
     vi.vertexBindingDescriptionCount = 3;
     vi.pVertexBindingDescriptions = stViBindings;
     vi.vertexAttributeDescriptionCount = 3;
-    vi.pVertexAttributes = stViAttrs;
+    vi.pVertexAttributeDescriptions = stViAttrs;
 
     VkPipelineInputAssemblyStateCreateInfo ia = {};
     ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -589,7 +599,7 @@ void InitGenericStageRenderData( vkGenericStageRenderData_t* rd )
     VkPipelineRasterizationStateCreateInfo rs = {};
     rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL;
-    rs.cullMode = VK_CULL_MODE_BACK;
+    rs.cullMode = VK_CULL_MODE_BACK_BIT;
     rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo ms = {};
@@ -655,7 +665,7 @@ void InitGenericStageRenderData( vkGenericStageRenderData_t* rd )
     viMT.vertexBindingDescriptionCount = 4;
     viMT.pVertexBindingDescriptions = mtViBindings;
     viMT.vertexAttributeDescriptionCount = 4;
-    viMT.pVertexAttributes = mtViAttrs;
+    viMT.pVertexAttributeDescriptions = mtViAttrs;
 
     rd->pipelineMT = VKDRV_CreatePipeline(
         g_vkPipelineLayout, g_vkRenderPass,
@@ -708,9 +718,11 @@ void InitViewRenderData( vkViewRenderData_t* vrd )
         vsAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         vsAllocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+        VmaAllocationInfo vsAllocInfoOut = {};
         VK_CHECK( vmaCreateBuffer( g_vkAllocator, &vsBufInfo, &vsAllocInfo,
                                     &vrd->vsUniformBuffer[i], &vrd->vsUniformAllocation[i],
-                                    (void**)&vrd->vsUniformData[i] ) );
+                                    &vsAllocInfoOut ) );
+        vrd->vsUniformData[i] = (vkViewVSUniformBuffer_t*)vsAllocInfoOut.pMappedData;
 
         // PS uniform buffer
         VkBufferCreateInfo psBufInfo = {};
@@ -723,9 +735,11 @@ void InitViewRenderData( vkViewRenderData_t* vrd )
         psAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         psAllocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+        VmaAllocationInfo psAllocInfoOut = {};
         VK_CHECK( vmaCreateBuffer( g_vkAllocator, &psBufInfo, &psAllocInfo,
                                     &vrd->psUniformBuffer[i], &vrd->psUniformAllocation[i],
-                                    (void**)&vrd->psUniformData[i] ) );
+                                    &psAllocInfoOut ) );
+        vrd->psUniformData[i] = (vkViewPSUniformBuffer_t*)psAllocInfoOut.pMappedData;
     }
 }
 
@@ -798,4 +812,203 @@ void DestroyTessBuffers( vkTessBuffers_t* tess )
 
     vkCircularBufferDestroy( &tess->fog.texCoords );
     vkCircularBufferDestroy( &tess->fog.colors );
+}
+
+//----------------------------------------------------------------------------
+// Fog render data
+//----------------------------------------------------------------------------
+
+void InitFogRenderData( vkFogRenderData_t* frd )
+{
+    // Vertex input: same as genericst (position + texcoord + color)
+    VkVertexInputBindingDescription viBindings[] = {
+        { 0, sizeof(vec4_t), VK_VERTEX_INPUT_RATE_VERTEX },
+        { 1, sizeof(vec2_t), VK_VERTEX_INPUT_RATE_VERTEX },
+        { 2, 4, VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+    VkVertexInputAttributeDescription viAttrs[] = {
+        { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
+        { 1, 1, VK_FORMAT_R32G32_SFLOAT, 0 },
+        { 2, 2, VK_FORMAT_R8G8B8A8_UNORM, 0 }
+    };
+    VkPipelineVertexInputStateCreateInfo vi = {};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = 3;
+    vi.pVertexBindingDescriptions = viBindings;
+    vi.vertexAttributeDescriptionCount = 3;
+    vi.pVertexAttributeDescriptions = viAttrs;
+
+    VkPipelineInputAssemblyStateCreateInfo ia = {};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vp = {};
+    vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vp.viewportCount = 1;
+    vp.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs = {};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms = {};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth state: LESS_OR_EQUAL, no write (fog renders after opaque geometry)
+    VkPipelineDepthStencilStateCreateInfo ds = {};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable = VK_TRUE;
+    ds.depthWriteEnable = VK_FALSE;
+    ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+    // Fog pipeline (regular): src_alpha / one_minus_src_alpha blend
+    VkPipelineColorBlendAttachmentState fogCb = {};
+    fogCb.blendEnable = VK_TRUE;
+    fogCb.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    fogCb.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    fogCb.colorBlendOp = VK_BLEND_OP_ADD;
+    fogCb.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    fogCb.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    fogCb.alphaBlendOp = VK_BLEND_OP_ADD;
+    fogCb.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo fogCbState = {};
+    fogCbState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    fogCbState.attachmentCount = 1;
+    fogCbState.pAttachments = &fogCb;
+
+    VkShaderModule vsModule = LoadShaderModule( "fog_vs" );
+    VkShaderModule psModule = LoadShaderModule( "fog_ps" );
+
+    VkPipelineShaderStageCreateInfo stages[2] = {};
+    stages[0] = CreateVertexShaderStage( vsModule );
+    stages[1] = CreateFragmentShaderStage( psModule );
+
+    frd->pipeline = VKDRV_CreatePipeline(
+        g_vkPipelineLayout, g_vkRenderPass,
+        stages, 2, &vi, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        &ia, &vp, &rs, &ms, &ds, &fogCbState );
+
+    // Additive fog pipeline: one / one blend
+    VkPipelineColorBlendAttachmentState addCb = {};
+    addCb.blendEnable = VK_TRUE;
+    addCb.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    addCb.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    addCb.colorBlendOp = VK_BLEND_OP_ADD;
+    addCb.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    addCb.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    addCb.alphaBlendOp = VK_BLEND_OP_ADD;
+    addCb.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo addCbState = {};
+    addCbState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    addCbState.attachmentCount = 1;
+    addCbState.pAttachments = &addCb;
+
+    frd->additivePipeline = VKDRV_CreatePipeline(
+        g_vkPipelineLayout, g_vkRenderPass,
+        stages, 2, &vi, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        &ia, &vp, &rs, &ms, &ds, &addCbState );
+}
+
+void DestroyFogRenderData( vkFogRenderData_t* frd )
+{
+    if ( frd->pipeline )
+    {
+        vkDestroyPipeline( g_vkDevice, frd->pipeline, nullptr );
+        frd->pipeline = VK_NULL_HANDLE;
+    }
+    if ( frd->additivePipeline )
+    {
+        vkDestroyPipeline( g_vkDevice, frd->additivePipeline, nullptr );
+        frd->additivePipeline = VK_NULL_HANDLE;
+    }
+}
+
+//----------------------------------------------------------------------------
+// Lightmap render data
+//----------------------------------------------------------------------------
+
+void InitLightmapRenderData( vkLightmapRenderData_t* lrd )
+{
+    // Vertex input: same as genericst (position + texcoord + color)
+    VkVertexInputBindingDescription viBindings[] = {
+        { 0, sizeof(vec4_t), VK_VERTEX_INPUT_RATE_VERTEX },
+        { 1, sizeof(vec2_t), VK_VERTEX_INPUT_RATE_VERTEX },
+        { 2, 4, VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+    VkVertexInputAttributeDescription viAttrs[] = {
+        { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
+        { 1, 1, VK_FORMAT_R32G32_SFLOAT, 0 },
+        { 2, 2, VK_FORMAT_R8G8B8A8_UNORM, 0 }
+    };
+    VkPipelineVertexInputStateCreateInfo vi = {};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vi.vertexBindingDescriptionCount = 3;
+    vi.pVertexBindingDescriptions = viBindings;
+    vi.vertexAttributeDescriptionCount = 3;
+    vi.pVertexAttributeDescriptions = viAttrs;
+
+    VkPipelineInputAssemblyStateCreateInfo ia = {};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vp = {};
+    vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vp.viewportCount = 1;
+    vp.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs = {};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_BACK_BIT;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms = {};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth state: LESS, write enabled
+    VkPipelineDepthStencilStateCreateInfo ds = {};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable = VK_TRUE;
+    ds.depthWriteEnable = VK_TRUE;
+    ds.depthCompareOp = VK_COMPARE_OP_LESS;
+
+    // Lightmap is baked-in color: opaque, no blending
+    VkPipelineColorBlendAttachmentState lmCb = {};
+    lmCb.blendEnable = VK_FALSE;
+    lmCb.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo lmCbState = {};
+    lmCbState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    lmCbState.attachmentCount = 1;
+    lmCbState.pAttachments = &lmCb;
+
+    VkShaderModule vsModule = LoadShaderModule( "lightmap_vs" );
+    VkShaderModule psModule = LoadShaderModule( "lightmap_ps" );
+
+    VkPipelineShaderStageCreateInfo stages[2] = {};
+    stages[0] = CreateVertexShaderStage( vsModule );
+    stages[1] = CreateFragmentShaderStage( psModule );
+
+    lrd->pipeline = VKDRV_CreatePipeline(
+        g_vkPipelineLayout, g_vkRenderPass,
+        stages, 2, &vi, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        &ia, &vp, &rs, &ms, &ds, &lmCbState );
+}
+
+void DestroyLightmapRenderData( vkLightmapRenderData_t* lrd )
+{
+    if ( lrd->pipeline )
+    {
+        vkDestroyPipeline( g_vkDevice, lrd->pipeline, nullptr );
+        lrd->pipeline = VK_NULL_HANDLE;
+    }
 }
