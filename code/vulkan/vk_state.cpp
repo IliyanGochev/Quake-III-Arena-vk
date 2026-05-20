@@ -247,7 +247,7 @@ VkBlendFactor VKDRV_GetSrcBlendFactor( int qConstant )
     case GLS_SRCBLEND_DST_ALPHA:          return VK_BLEND_FACTOR_DST_ALPHA;
     case GLS_SRCBLEND_ONE_MINUS_DST_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
     case GLS_SRCBLEND_ALPHA_SATURATE:     return VK_BLEND_FACTOR_SRC_ALPHA; // GL_ALPHA_SATURATE = min(srcA, 1-dstA) has no Vulkan equivalent
-    default:                              ASSERT(0); return VK_BLEND_FACTOR_ONE;
+    default:                              return VK_BLEND_FACTOR_ONE;
     }
 }
 
@@ -263,7 +263,7 @@ VkBlendFactor VKDRV_GetDstBlendFactor( int qConstant )
     case GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     case GLS_DSTBLEND_DST_ALPHA:          return VK_BLEND_FACTOR_DST_ALPHA;
     case GLS_DSTBLEND_ONE_MINUS_DST_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-    default:                              ASSERT(0); return VK_BLEND_FACTOR_ONE;
+    default:                              return VK_BLEND_FACTOR_ONE;
     }
 }
 
