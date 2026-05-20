@@ -936,11 +936,39 @@ void VKDRV_DestroyDescriptorSystem()
 // Begin/end single command buffer
 //----------------------------------------------------------------------------
 
+// Wait for the transfer fence if it is not already signaled.
+// This must be called before resetting the transfer command buffer to ensure
+// the GPU has finished executing any previous transfer submission. Without
+// this check, resetting the command buffer while the GPU is still using it
+// is undefined behavior in Vulkan, which can corrupt VMA's internal state
+// and cause "allocations not freed" assertion failures.
+static void VKDRV_WaitForTransferFenceIfActive()
+{
+    VkResult result = vkGetFenceStatus( g_vkDevice, g_vkTransferFence );
+    if ( result != VK_SUCCESS )
+    {
+        // Fence is not signaled -- a previous transfer submission is still
+        // in-flight. Wait for it to complete before resetting the command
+        // buffer. This prevents undefined behavior from resetting a command
+        // buffer that the GPU is still executing.
+        vkWaitForFences( g_vkDevice, 1, &g_vkTransferFence, VK_TRUE, UINT64_MAX );
+    }
+}
+
 VkCommandBuffer VKDRV_BeginCommandBuffer()
 {
     // Use the dedicated transfer command buffer to avoid resetting the
     // primary render command buffer (issue #6). This prevents ad-hoc
     // transfers from discarding in-flight render commands.
+    //
+    // Before resetting, ensure the GPU has finished with any previous
+    // transfer submission. When VKDRV_SubmitCommandBuffer is called with
+    // wait=false (e.g., during image upload at line 268 of vk_image.cpp),
+    // the transfer command buffer is submitted but the function returns
+    // immediately. On the next call to this function, we must wait for
+    // the transfer fence to avoid resetting a command buffer that is
+    // still in use by the GPU.
+    VKDRV_WaitForTransferFenceIfActive();
     VK_CHECK( vkResetCommandBuffer( g_vkTransferCommandBuffer, 0 ) );
 
     VkCommandBufferBeginInfo beginInfo = {};

@@ -222,6 +222,7 @@ void VKDrv_CreateImage( const image_t* image, const byte* pic, qboolean isLightm
 
     VmaAllocationCreateInfo stagingAllocInfo = {};
     stagingAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufferInfo, &stagingAllocInfo,
                                 &stagingBuffer, &stagingAllocation, nullptr ) );
@@ -436,6 +437,7 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
 
     VmaAllocationCreateInfo stagingAllocInfo = {};
     stagingAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
     VK_CHECK( vmaCreateBuffer( g_vkAllocator, &bufferInfo, &stagingAllocInfo,
                                 &stagingBuffer, &stagingAllocation, nullptr ) );
