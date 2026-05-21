@@ -319,10 +319,6 @@ void VKDrv_UpdateCinematic(const image_t* image, const byte* pic, int cols, int 
 	}
 }
 
-void VKDrv_DrawImage(const image_t* image, const float* coords, const float* texcoords, const float* color)
-{	
-}
-
 imageFormat_t VKDrv_GetImageFormat(const image_t* image)
 {	
 	// For now we re supporting RGBA8 only
