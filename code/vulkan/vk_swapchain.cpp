@@ -40,6 +40,7 @@ void VKDrv_Clear( unsigned long bits, const float* clearCol, unsigned long stenc
     beginInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass( cmd, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+    g_vkRenderPassActive = qtrue;
 
     // Debug label for render phase (issue #6)
     VKDRV_BeginDebugLabel( cmd, "RenderFrame" );

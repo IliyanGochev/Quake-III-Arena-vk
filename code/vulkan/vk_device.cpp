@@ -48,6 +48,8 @@ VmaAllocation      g_vkDepthAllocation = nullptr;
 VkFormat           g_vkDepthFormat = VK_FORMAT_D24_UNORM_S8_UINT;
 
 VkRenderPass       g_vkRenderPass = VK_NULL_HANDLE;
+qboolean           g_vkRenderPassActive = qfalse;
+qboolean           g_vkCommandBufferActive = qfalse;
 VkFramebuffer*     g_vkFramebuffers = nullptr;
 
 VmaAllocator       g_vkAllocator = nullptr;
@@ -1019,6 +1021,13 @@ void VKDRV_BeginFrame()
 {
     // Begin the primary command buffer for this frame
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
+
+    // Wait for GPU to finish with this command buffer from its previous use.
+    // With double-buffering, frame N's command buffer is reused in frame N+2
+    // while the GPU may still be executing it. Resetting without waiting is
+    // undefined behavior and causes access violations in the driver.
+    vkWaitForFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX );
+
     VK_CHECK( vkResetCommandBuffer( cmd, 0 ) );
 
     VkCommandBufferBeginInfo beginInfo = {};
@@ -1026,6 +1035,7 @@ void VKDRV_BeginFrame()
     // No ONE_TIME_SUBMIT_BIT for the primary render buffer
     beginInfo.flags = 0;
     VK_CHECK( vkBeginCommandBuffer( cmd, &beginInfo ) );
+    g_vkCommandBufferActive = qtrue;
 }
 
 void VKDRV_AcquireNextImage()
@@ -1060,20 +1070,24 @@ void VKDRV_AcquireNextImage()
 
 void VKDRV_SubmitAndPresent()
 {
-    // End debug label for render phase (issue #6)
-    VKDRV_EndDebugLabel( g_vkCommandBuffers[g_vkCurrentFrame] );
+    // End the render pass before submitting (only if one is active)
+    if ( g_vkRenderPassActive )
+    {
+        VKDRV_EndDebugLabel( g_vkCommandBuffers[g_vkCurrentFrame] );
+        vkCmdEndRenderPass( g_vkCommandBuffers[g_vkCurrentFrame] );
+        g_vkRenderPassActive = qfalse;
+    }
 
-    // End the render pass before submitting
-    vkCmdEndRenderPass( g_vkCommandBuffers[g_vkCurrentFrame] );
-
-    // End the primary command buffer before submitting
-    vkEndCommandBuffer( g_vkCommandBuffers[g_vkCurrentFrame] );
-
-    // Wait for this frame's fence (GPU may still be working on it from previous use)
-    vkWaitForFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX );
-    vkResetFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame] );
+    // End the primary command buffer before submitting (only if it was begun)
+    if ( g_vkCommandBufferActive )
+    {
+        vkEndCommandBuffer( g_vkCommandBuffers[g_vkCurrentFrame] );
+        g_vkCommandBufferActive = qfalse;
+    }
 
     // Submit the primary command buffer with proper semaphore synchronization
+    // Note: The fence is already waited on and reset in VKDRV_AcquireNextImage()
+    // at the start of the next frame. No duplicate wait needed here.
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;

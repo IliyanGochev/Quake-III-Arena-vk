@@ -109,6 +109,8 @@ extern VkFormat           g_vkDepthFormat;
 
 // Render pass
 extern VkRenderPass       g_vkRenderPass;
+extern qboolean           g_vkRenderPassActive;
+extern qboolean           g_vkCommandBufferActive;
 extern VkFramebuffer*     g_vkFramebuffers;
 
 // VMA allocator
