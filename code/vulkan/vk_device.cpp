@@ -1060,7 +1060,30 @@ void VKDRV_AcquireNextImage()
     {
         ri.Printf( PRINT_DEVELOPER, "WARNING: Swapchain out of date/suboptimal, recreating\n" );
         VKDRV_RecreateSwapchain( (uint32_t)vdConfig.vidWidth, (uint32_t)vdConfig.vidHeight );
-        g_vkLastError = VK_SUCCESS;
+
+        // Re-acquire image from the newly recreated swapchain.
+        // The fence was already reset before the initial acquire and is effectively
+        // signaled after vkDeviceWaitIdle inside VKDRV_RecreateSwapchain, so we only
+        // need to acquire without a fence.
+        VkResult reacquireResult = vkAcquireNextImageKHR(
+            g_vkDevice, g_vkSwapchain, UINT64_MAX,
+            g_vkImageAvailableSemaphores[g_vkCurrentFrame], VK_NULL_HANDLE,
+            &g_vkCurrentImageIndex );
+
+        if ( reacquireResult == VK_ERROR_OUT_OF_DATE_KHR || reacquireResult == VK_SUBOPTIMAL_KHR )
+        {
+            // Swapchain recreated again before we could use it. Return early;
+            // the caller will retry acquire on the next call.
+            return;
+        }
+        else if ( reacquireResult != VK_SUCCESS )
+        {
+            g_vkLastError = reacquireResult;
+        }
+        else
+        {
+            g_vkLastError = VK_SUCCESS;
+        }
     }
     else if ( result != VK_SUCCESS )
     {
