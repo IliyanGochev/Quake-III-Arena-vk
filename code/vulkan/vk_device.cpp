@@ -1002,7 +1002,13 @@ void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait, qboole
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
-    VK_CHECK( vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, fenceToUse ) );
+    VkResult submitResult = vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, fenceToUse );
+    if ( submitResult != VK_SUCCESS )
+    {
+        g_vkLastError = submitResult;
+        ri.Printf( PRINT_ERROR, "ERROR: vkQueueSubmit failed with %d\n", submitResult );
+        return;
+    }
 
     // When wait is true, block until the transfer completes before returning.
     // This is required for readback operations (ReadPixels, ReadDepth, ReadStencil)
@@ -1027,6 +1033,7 @@ void VKDRV_BeginFrame()
     // while the GPU may still be executing it. Resetting without waiting is
     // undefined behavior and causes access violations in the driver.
     vkWaitForFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX );
+    vkResetFences( g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame] );
 
     VK_CHECK( vkResetCommandBuffer( cmd, 0 ) );
 
@@ -1109,8 +1116,8 @@ void VKDRV_SubmitAndPresent()
     }
 
     // Submit the primary command buffer with proper semaphore synchronization
-    // Note: The fence is already waited on and reset in VKDRV_AcquireNextImage()
-    // at the start of the next frame. No duplicate wait needed here.
+    // Note: The fence is already waited on and reset in VKDRV_BeginFrame()
+    // at the start of the next frame. No duplicate wait or reset needed here.
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
@@ -1126,7 +1133,20 @@ void VKDRV_SubmitAndPresent()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    VK_CHECK( vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, g_vkInFlightFences[g_vkCurrentFrame] ) );
+    VkResult submitResult = vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, g_vkInFlightFences[g_vkCurrentFrame] );
+    if ( submitResult == VK_ERROR_OUT_OF_DATE_KHR || submitResult == VK_SUBOPTIMAL_KHR )
+    {
+        ri.Printf( PRINT_DEVELOPER, "WARNING: Swapchain out of date/suboptimal during submit, recreating\n" );
+        VKDRV_RecreateSwapchain( (uint32_t)vdConfig.vidWidth, (uint32_t)vdConfig.vidHeight );
+        g_vkLastError = VK_SUCCESS;
+        return;
+    }
+    else if ( submitResult != VK_SUCCESS )
+    {
+        g_vkLastError = submitResult;
+        ri.Printf( PRINT_ERROR, "ERROR: vkQueueSubmit failed with %d\n", submitResult );
+        return;
+    }
 
     // Present the rendered image
     VkPresentInfoKHR presentInfo = {};
