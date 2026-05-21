@@ -91,11 +91,13 @@ VkPipeline VKDRV_SelectPipeline( unsigned long depthState, int cullMode, qboolea
     // distinct pipeline variants from blended surfaces with the same blend factors.
     // Index encoding: depthState[rasterState[blendState[alphaTest]]]
     // Shift amounts derived from enum sizes to avoid magic numbers.
+    // depthState is a bitmask (GLS_DEPTH*_ flags OR-ed together), so mask it
+    // to the valid enum range before using it as a packed index component.
     static constexpr int kAlphaTestShift = 0;
     static constexpr int kBlendStateShift = kAlphaTestShift + 2; // 2 bits for alphaTest (4 values)
     static constexpr int kRasterStateShift = kBlendStateShift + 2; // 2 bits for blendState (4 values)
     static constexpr int kDepthStateShift = kRasterStateShift + 3; // 3 bits for rasterState (8 values)
-    int index = (int)( (depthState << kDepthStateShift)
+    int index = (int)( ((depthState & (VK_DEPTHSTATE_COUNT - 1)) << kDepthStateShift)
                      | (rasterState << kRasterStateShift)
                      | (blendState << kBlendStateShift)
                      | g_vkRunState.alphaTest );
