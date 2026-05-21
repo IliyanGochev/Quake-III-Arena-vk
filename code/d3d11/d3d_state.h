@@ -257,7 +257,9 @@ void DrawQuad(
     const float* color );
 
 // cullmode = CT_ flags
+#ifdef Q3D3D11
 void CommitRasterizerState( int cullMode, qboolean polyOffset, qboolean outline );
+#endif
 
 ID3D11RasterizerState* GetRasterizerState( D3D11_CULL_MODE cullmode, unsigned long mask );
 ID3D11DepthStencilState* GetDepthState( unsigned long mask ); // DEPTHSTATE_FLAG_ enum

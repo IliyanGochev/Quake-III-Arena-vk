@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #if !defined(WIN8)
 #   include "gl_common.h"
 #   include "proxy_main.h"
-#endif 
+#endif
 
 vdconfig_t	vdConfig;
 
@@ -198,18 +198,18 @@ void InitDriver( void )
     {
         D3DDrv_DriverInit();
     }
-	else if ( strcmp( r_driver->string, "vulkan") == 0)
-	{
-		VKDrv_DriverInit();
-	}
     else if ( strcmp( r_driver->string, "proxy" ) == 0 )
     {
         PROXY_DriverInit();
     }
+    else if ( strcmp( r_driver->string, "vulkan" ) == 0 )
+    {
+        VKDrv_DriverInit();
+    }
     else
     {
         // Invalid driver
-		ri.Error(ERR_FATAL, "Invalid driver: %s\n", r_driver->string );
+        ri.Error(ERR_FATAL, "Invalid driver: %s\n", r_driver->string );
     }
 #else
     D3DDrv_DriverInit();
