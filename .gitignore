@@ -25,3 +25,8 @@ baseq3/maps/autosave.map
 *.db
 *.opendb
 *.vs
+
+# worca runtime
+.worca/
+logs/
+.claude/settings.local.json
