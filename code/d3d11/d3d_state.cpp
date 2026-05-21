@@ -64,12 +64,13 @@ void DestroyBuffers()
 //----------------------------------------------------------------------------
 // Set the culling mode depending on whether it's a mirror or not
 //----------------------------------------------------------------------------
+#ifdef Q3D3D11
 void CommitRasterizerState( int cullType, qboolean polyOffset, qboolean outline )
 {
-    int maskBits = 
+    int maskBits =
         ( ( outline & 1 ) << 5 ) |
         ( ( polyOffset & 1 ) << 4 ) |
-        ( ( backEnd.viewParms.isMirror & 1 ) << 3 ) | 
+        ( ( backEnd.viewParms.isMirror & 1 ) << 3 ) |
         ( cullType & 3 );
 
 	if ( g_RunState.cullMode == maskBits ) {
@@ -80,7 +81,7 @@ void CommitRasterizerState( int cullType, qboolean polyOffset, qboolean outline 
 
     // Resolve which direction we're culling in
     D3D11_CULL_MODE cullMode = D3D11_CULL_NONE;
-	if ( cullType != CT_TWO_SIDED ) 
+	if ( cullType != CT_TWO_SIDED )
     {
 		if ( cullType == CT_BACK_SIDED )
 		{
@@ -112,6 +113,7 @@ void CommitRasterizerState( int cullType, qboolean polyOffset, qboolean outline 
 
     g_pImmediateContext->RSSetState( GetRasterizerState( cullMode, rasterFlags ) );
 }
+#endif
 
 //----------------------------------------------------------------------------
 // Set the culling mode depending on whether it's a mirror or not
