@@ -882,20 +882,30 @@ void VKDRV_PopulateDescriptorSets()
 
 void VKDRV_UpdateTextureDescriptors( const vkImage_t* tex0, const vkImage_t* tex1 )
 {
-    VkDescriptorImageInfo info0 = {}, info1 = {};
+    const vkImage_t* fallback = GetImageRenderInfo( tr.whiteImage );
+
+    VkDescriptorImageInfo info0 = {};
+    info0.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_IMAGE_INFO;
+    info0.imageView = fallback->imageView;
+    info0.sampler = fallback->sampler;
+    info0.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorImageInfo info1 = {};
+    info1.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_IMAGE_INFO;
+    info1.imageView = fallback->imageView;
+    info1.sampler = fallback->sampler;
+    info1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     if ( tex0 && tex0->imageView )
     {
         info0.sampler = tex0->sampler;
         info0.imageView = tex0->imageView;
-        info0.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     if ( tex1 && tex1->imageView )
     {
         info1.sampler = tex1->sampler;
         info1.imageView = tex1->imageView;
-        info1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     VkWriteDescriptorSet writes[2] = {};
@@ -909,16 +919,13 @@ void VKDRV_UpdateTextureDescriptors( const vkImage_t* tex0, const vkImage_t* tex
     writes[writeCount].pImageInfo = &info0;
     writeCount++;
 
-    if ( tex1 )
-    {
-        writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[writeCount].dstSet = g_vkDescriptorSets[g_vkCurrentFrame];
-        writes[writeCount].dstBinding = VK_BIND_TEXTURE_1;
-        writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[writeCount].descriptorCount = 1;
-        writes[writeCount].pImageInfo = &info1;
-        writeCount++;
-    }
+    writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[writeCount].dstSet = g_vkDescriptorSets[g_vkCurrentFrame];
+    writes[writeCount].dstBinding = VK_BIND_TEXTURE_1;
+    writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[writeCount].descriptorCount = 1;
+    writes[writeCount].pImageInfo = &info1;
+    writeCount++;
 
     vkUpdateDescriptorSets( g_vkDevice, writeCount, writes, 0, nullptr );
 }

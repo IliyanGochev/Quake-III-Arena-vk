@@ -155,7 +155,10 @@ static void DrawQuad(
     vkCmdBindDescriptorSets( cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelineLayout, 0, 1, &g_vkDescriptorSets[g_vkCurrentFrame], 0, nullptr );
 
     // Update texture descriptor for the quad
-    VKDRV_UpdateTextureDescriptors( image, nullptr );
+    if ( image )
+    {
+        VKDRV_UpdateTextureDescriptors( image, nullptr );
+    }
 
     // Update binding 1 to quad color buffer (initialized to skybox VS eye buffer)
     // The fsq_ps shader reads color from register b1 / binding 1
@@ -571,7 +574,10 @@ void VKDrv_DrawBeam( const image_t* image, const float* color, const vec3_t star
     ri.Free( verts );
 
     const vkImage_t* vkTex = GetImageRenderInfo( image );
-    VKDRV_UpdateTextureDescriptors( vkTex, nullptr );
+    if ( vkTex )
+    {
+        VKDRV_UpdateTextureDescriptors( vkTex, nullptr );
+    }
 
     VKDrv_SetState( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHTEST_DISABLE );
     UpdateMaterialState();
