@@ -186,6 +186,12 @@ void VKDrv_SetDrawBuffer( int buffer )
 
 void VKDrv_Flush( void )
 {
+    // When called mid-frame (e.g., from RE_StretchRaw during cinematic rendering),
+    // the render pass is active and the fence won't be signaled until end-of-frame.
+    // Waiting in that case would cause a deadlock. Only wait when we're between frames.
+    if ( g_vkRenderPassActive )
+        return;
+
     // Wait for the current frame's GPU work to complete via its in-flight fence.
     // This avoids a full-device stall (vkDeviceWaitIdle) while still ensuring
     // all recorded commands are finished before the caller proceeds.
