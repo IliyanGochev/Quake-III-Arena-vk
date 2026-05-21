@@ -2,8 +2,10 @@
 
 // @pjb: holds all the relevant d3d shaders
 
+#ifdef Q3D3D11
 void InitShaders();
 void DestroyShaders();
+#endif
 
 struct d3dVertexShaderBlob_t
 {
