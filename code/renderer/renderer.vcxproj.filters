@@ -385,6 +385,9 @@
     <ClCompile Include="..\vulkan\vk_driver.cpp">
       <Filter>Vulkan Implementation</Filter>
     </ClCompile>
+    <ClCompile Include="..\vulkan\vk_swapchain.cpp">
+      <Filter>Vulkan Implementation</Filter>
+    </ClCompile>
     <ClCompile Include="..\vulkan\vk_device.cpp">
       <Filter>Vulkan Implementation</Filter>
     </ClCompile>

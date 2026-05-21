@@ -59,6 +59,7 @@ ID3D11VertexShader* LoadVertexShader( const char* name, d3dVertexShaderBlob_t* b
     return shader;
 }
 
+#ifdef Q3D3D11
 void InitShaders()
 {
 
@@ -68,3 +69,4 @@ void DestroyShaders()
 {
 
 }
+#endif
