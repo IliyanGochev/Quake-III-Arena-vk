@@ -25,6 +25,13 @@ static void VKDRV_ApplyGamma( byte* data, int pixelCount, int bytesPerPixel )
 static vkImage_t  g_vkImagePool[VK_IMAGE_POOL_SIZE];
 static int        g_vkImageCount = 0;
 
+// Redirect table for cinematic images that needed dimension changes.
+// When a cinematic's scratch image (e.g. 16x16) is resized to its native
+// resolution (e.g. 256x256), the new image is created in a different pool
+// slot and this table maps the engine's image->index to the new slot.
+// The old slot is left with null handles and cleaned up at shutdown.
+static int        g_vkCinematicRedirect[VK_IMAGE_POOL_SIZE];
+
 //----------------------------------------------------------------------------
 // Format conversion: engine imageFormat_t → VkFormat
 //----------------------------------------------------------------------------
@@ -388,6 +395,13 @@ void VKDrv_DeleteImage( const image_t* image )
     int slot = image->index;
     if ( slot < 0 || slot >= VK_IMAGE_POOL_SIZE )
         return;
+
+    // Follow redirect for resized cinematic images
+    if ( g_vkCinematicRedirect[slot] != slot )
+    {
+        slot = g_vkCinematicRedirect[slot];
+    }
+
     vkImage_t* img = &g_vkImagePool[slot];
 
     if ( img->imageView )
@@ -414,23 +428,52 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
     if ( !image || !pic )
         return;
 
-    int slot = image->index;
-    if ( slot < 0 || slot >= VK_IMAGE_POOL_SIZE )
+    int origSlot = image->index;
+    if ( origSlot < 0 || origSlot >= VK_IMAGE_POOL_SIZE )
         return;
-    vkImage_t* img = &g_vkImagePool[slot];
 
-    // Recreate image if dimensions changed (scratch images start at 16x16
-    // but cinematics are typically 256x256).
+    // Check if we need to redirect to a new pool slot (dimension mismatch).
+    // Scratch images start at 16x16 but cinematics are typically 256x256.
+    // Instead of destroying the old image mid-frame (which corrupts VMA),
+    // we allocate a new slot and redirect future lookups.
+    int slot = origSlot;
+    vkImage_t* img = &g_vkImagePool[slot];
+    qboolean needRedirect = qfalse;
+
     if ( img->image && ( cols != img->width || rows != img->height ) )
     {
-        vkDestroyImageView( g_vkDevice, img->imageView, nullptr );
-        vmaDestroyImage( g_vkAllocator, img->image, img->allocation );
-        img->image = VK_NULL_HANDLE;
-        img->imageView = VK_NULL_HANDLE;
-        img->allocation = nullptr;
+        // Find a free slot in the pool
+        int newSlot = -1;
+        for ( int i = 0; i < VK_IMAGE_POOL_SIZE; i++ )
+        {
+            if ( g_vkImagePool[i].image == VK_NULL_HANDLE )
+            {
+                newSlot = i;
+                break;
+            }
+        }
+
+        // No free slot — wrap around and overwrite oldest (slot 0)
+        if ( newSlot < 0 )
+        {
+            ri.Printf( PRINT_WARNING, "WARNING: Vulkan image pool full, wrapping at slot 0\n" );
+            newSlot = 0;
+        }
+
+        // Mark old slot as inactive (do NOT destroy — GPU may still be reading)
+        g_vkImagePool[origSlot].image = VK_NULL_HANDLE;
+        g_vkImagePool[origSlot].allocation = nullptr;
+        g_vkImagePool[origSlot].imageView = VK_NULL_HANDLE;
+
+        // Set up redirect
+        g_vkCinematicRedirect[origSlot] = newSlot;
+        slot = newSlot;
+        img = &g_vkImagePool[slot];
+        needRedirect = qtrue;
     }
 
-    if ( !img->image )
+    // Create image if we redirected or the slot is empty
+    if ( !img->image || needRedirect )
     {
         // Calculate mip levels
         int maxDim = cols > rows ? cols : rows;
@@ -476,9 +519,7 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
         img->height = rows;
         img->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        // Create and submit a one-time command buffer to initialize the image layout
-        VkCommandBuffer initCmd = VKDRV_BeginCommandBuffer();
-
+        // Transition image layout to TRANSFER_DST_OPTIMAL
         VkImageMemoryBarrier barrier = {};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -493,9 +534,10 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
         barrier.subresourceRange.layerCount = 1;
         barrier.srcAccessMask = 0;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        VkCommandBuffer initCmd = VKDRV_BeginCommandBuffer();
         vkCmdPipelineBarrier( initCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                0, 0, nullptr, 0, nullptr, 1, &barrier );
-
         VKDRV_EndCommandBuffer( initCmd );
         VKDRV_SubmitCommandBuffer( initCmd, qtrue, qtrue );
     }
@@ -624,6 +666,13 @@ const vkImage_t* GetImageRenderInfo( const image_t* image )
                     image->index, VK_IMAGE_POOL_SIZE );
         return nullptr;
     }
+
+    // Follow redirect for resized cinematic images
+    if ( g_vkCinematicRedirect[slot] != slot )
+    {
+        slot = g_vkCinematicRedirect[slot];
+    }
+
     return &g_vkImagePool[slot];
 }
 
@@ -635,6 +684,11 @@ void VKDRV_InitImages()
 {
     Com_Memset( g_vkImagePool, 0, sizeof( g_vkImagePool ) );
     g_vkImageCount = 0;
+    Com_Memset( g_vkCinematicRedirect, 0, sizeof( g_vkCinematicRedirect ) );
+    for ( int i = 0; i < VK_IMAGE_POOL_SIZE; i++ )
+    {
+        g_vkCinematicRedirect[i] = i;  // identity mapping
+    }
 }
 
 void VKDRV_DestroyImages()
@@ -655,5 +709,6 @@ void VKDRV_DestroyImages()
         }
     }
     Com_Memset( g_vkImagePool, 0, sizeof( g_vkImagePool ) );
+    Com_Memset( g_vkCinematicRedirect, 0, sizeof( g_vkCinematicRedirect ) );
     g_vkImageCount = 0;
 }
