@@ -418,8 +418,87 @@ void VKDrv_UpdateCinematic( const image_t* image, const byte* pic, int cols, int
     if ( slot < 0 || slot >= VK_IMAGE_POOL_SIZE )
         return;
     vkImage_t* img = &g_vkImagePool[slot];
+
+    // Recreate image if dimensions changed (scratch images start at 16x16
+    // but cinematics are typically 256x256).
+    if ( img->image && ( cols != img->width || rows != img->height ) )
+    {
+        vkDestroyImageView( g_vkDevice, img->imageView, nullptr );
+        vmaDestroyImage( g_vkAllocator, img->image, img->allocation );
+        img->image = VK_NULL_HANDLE;
+        img->imageView = VK_NULL_HANDLE;
+        img->allocation = nullptr;
+    }
+
     if ( !img->image )
-        return;
+    {
+        // Calculate mip levels
+        int maxDim = cols > rows ? cols : rows;
+        int totalMipLevels = 1;
+        while ( maxDim > 1 ) { totalMipLevels++; maxDim >>= 1; }
+
+        VkImageCreateInfo imageInfo = {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = cols;
+        imageInfo.extent.height = rows;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = totalMipLevels;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        VK_CHECK( vmaCreateImage( g_vkAllocator, &imageInfo, &allocInfo,
+                                   &img->image, &img->allocation, nullptr ) );
+
+        VkImageViewCreateInfo viewInfo = {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = img->image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        viewInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
+                                VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = totalMipLevels;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+        VK_CHECK( vkCreateImageView( g_vkDevice, &viewInfo, nullptr, &img->imageView ) );
+
+        img->format = VK_FORMAT_R8G8B8A8_UNORM;
+        img->width = cols;
+        img->height = rows;
+        img->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        // Create and submit a one-time command buffer to initialize the image layout
+        VkCommandBuffer initCmd = VKDRV_BeginCommandBuffer();
+
+        VkImageMemoryBarrier barrier = {};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = img->image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier( initCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, 0, nullptr, 0, nullptr, 1, &barrier );
+
+        VKDRV_EndCommandBuffer( initCmd );
+        VKDRV_SubmitCommandBuffer( initCmd, qtrue, qtrue );
+    }
 
     // Mark as dynamic
     img->dynamic = qtrue;

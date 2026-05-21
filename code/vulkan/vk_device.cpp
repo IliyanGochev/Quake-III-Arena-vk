@@ -35,6 +35,7 @@ VkCommandBuffer    g_vkCommandBuffers[VK_MAX_FRAMES_IN_FLIGHT] = { };
 VkCommandPool      g_vkTransferCommandPool = VK_NULL_HANDLE;
 VkCommandBuffer    g_vkTransferCommandBuffer = VK_NULL_HANDLE;
 VkFence            g_vkTransferFence = VK_NULL_HANDLE;
+VkSemaphore        g_vkTransferSemaphores[VK_MAX_FRAMES_IN_FLIGHT] = { };
 
 VkDescriptorPool   g_vkDescriptorPool = VK_NULL_HANDLE;
 VkDescriptorSetLayout g_vkDescriptorSetLayout = VK_NULL_HANDLE;
@@ -635,6 +636,13 @@ void VKDRV_CreateSyncObjects()
 
     // Dedicated fence for transfer command buffer (avoids deadlock with render fence)
     VK_CHECK( vkCreateFence( g_vkDevice, &fenceInfo, nullptr, &g_vkTransferFence ) );
+
+    // Per-frame semaphores for GPU synchronization between transfer uploads
+    // and the render commands that consume the uploaded data
+    for ( int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++ )
+    {
+        VK_CHECK( vkCreateSemaphore( g_vkDevice, &semaphoreInfo, nullptr, &g_vkTransferSemaphores[i] ) );
+    }
 }
 
 void VKDRV_DestroySyncObjects()
@@ -649,6 +657,11 @@ void VKDRV_DestroySyncObjects()
     {
         vkDestroyFence( g_vkDevice, g_vkTransferFence, nullptr );
         g_vkTransferFence = VK_NULL_HANDLE;
+    }
+
+    for ( int i = 0; i < VK_MAX_FRAMES_IN_FLIGHT; i++ )
+    {
+        vkDestroySemaphore( g_vkDevice, g_vkTransferSemaphores[i], nullptr );
     }
 }
 
@@ -1002,6 +1015,20 @@ void VKDRV_SubmitCommandBuffer( VkCommandBuffer cmdBuffer, qboolean wait, qboole
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
+    // Signal a per-frame semaphore on transfer submissions so the render
+    // submission can wait for it. This guarantees GPU-side synchronization
+    // between texture uploads (transfer) and the draw commands that sample
+    // the uploaded image — fixes white-screen cinematics.
+    VkSemaphore signalSemaphores[1] = {};
+    uint32_t signalCount = 0;
+    if ( isTransfer )
+    {
+        signalSemaphores[0] = g_vkTransferSemaphores[g_vkCurrentFrame];
+        signalCount = 1;
+        submitInfo.signalSemaphoreCount = signalCount;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+    }
+
     VkResult submitResult = vkQueueSubmit( g_vkGraphicsQueue, 1, &submitInfo, fenceToUse );
     if ( submitResult != VK_SUCCESS )
     {
@@ -1123,9 +1150,13 @@ void VKDRV_SubmitAndPresent()
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &g_vkCommandBuffers[g_vkCurrentFrame];
 
-    VkSemaphore waitSemaphores[] = { g_vkImageAvailableSemaphores[g_vkCurrentFrame] };
-    VkPipelineStageFlags waitStageMasks[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount = 1;
+    // Wait on both the image-available semaphore (swapchain sync) and the
+    // transfer semaphore (ensures cinematic uploads complete before rendering).
+    // This fixes the white-screen issue where draw commands sampled the
+    // cinematic image before the upload transfer finished writing to it.
+    VkSemaphore waitSemaphores[2] = { g_vkImageAvailableSemaphores[g_vkCurrentFrame], g_vkTransferSemaphores[g_vkCurrentFrame] };
+    VkPipelineStageFlags waitStageMasks[2] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
+    submitInfo.waitSemaphoreCount = 2;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStageMasks;
 

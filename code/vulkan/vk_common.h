@@ -92,6 +92,7 @@ extern VkCommandBuffer    g_vkCommandBuffers[VK_MAX_FRAMES_IN_FLIGHT];
 extern VkCommandPool      g_vkTransferCommandPool;
 extern VkCommandBuffer    g_vkTransferCommandBuffer;
 extern VkFence            g_vkTransferFence;
+extern VkSemaphore        g_vkTransferSemaphores[VK_MAX_FRAMES_IN_FLIGHT];
 
 // Descriptor pool & layout
 extern VkDescriptorPool   g_vkDescriptorPool;

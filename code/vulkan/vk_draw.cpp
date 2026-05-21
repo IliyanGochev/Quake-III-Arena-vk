@@ -118,22 +118,25 @@ static void DrawQuad(
 
     VkCommandBuffer cmd = g_vkCommandBuffers[g_vkCurrentFrame];
 
-    // Apply viewport/scissor from coords (x, y, w, h) so the quad renders at the
+    // Apply viewport/scissor from coords (x, y, x+w, y+h) so the quad renders at the
     // requested screen region instead of always fullscreen.
     if ( coords )
     {
+        float width = coords[2] - coords[0];
+        float height = coords[3] - coords[1];
+
         VkViewport vp = {};
         vp.x = coords[0];
-        vp.y = coords[1] + coords[3];
-        vp.width = coords[2];
-        vp.height = -coords[3];
+        vp.y = coords[1];
+        vp.width = width;
+        vp.height = -height;  // Negative height flips Y axis for Vulkan (NDC +1 -> top)
         vp.minDepth = 0.0f;
         vp.maxDepth = 1.0f;
         vkCmdSetViewport( cmd, 0, 1, &vp );
 
         VkRect2D scissor = {};
         scissor.offset = { (int32_t)coords[0], (int32_t)coords[1] };
-        scissor.extent = { (uint32_t)coords[2], (uint32_t)coords[3] };
+        scissor.extent = { (uint32_t)width, (uint32_t)height };
         vkCmdSetScissor( cmd, 0, 1, &scissor );
     }
 
@@ -153,6 +156,25 @@ static void DrawQuad(
 
     // Update texture descriptor for the quad
     VKDRV_UpdateTextureDescriptors( image, nullptr );
+
+    // Update binding 1 to quad color buffer (initialized to skybox VS eye buffer)
+    // The fsq_ps shader reads color from register b1 / binding 1
+    {
+        VkDescriptorBufferInfo colorBufInfo = {};
+        colorBufInfo.buffer = qrd->uniformBuffer;
+        colorBufInfo.offset = 0;
+        colorBufInfo.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet write = {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = g_vkDescriptorSets[g_vkCurrentFrame];
+        write.dstBinding = VK_BIND_SKYBOX_VSEYE;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write.descriptorCount = 1;
+        write.pBufferInfo = &colorBufInfo;
+
+        vkUpdateDescriptorSets( g_vkDevice, 1, &write, 0, nullptr );
+    }
 
     // Draw
     vkCmdDrawIndexed( cmd, 6, 1, 0, 0, 0 );
