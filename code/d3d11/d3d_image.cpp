@@ -110,7 +110,7 @@ void CreateImageCustom(
     case WRAPMODE_REPEAT:
         samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
         samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-        samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
         break;
     }
     
@@ -236,6 +236,7 @@ const d3dImage_t* GetImageRenderInfo( const image_t* image )
 }
 
 
+#ifdef Q3D3D11
 void InitImages()
 {
     Com_Memset( s_d3dImages, 0, sizeof( s_d3dImages ) );
@@ -245,3 +246,4 @@ void DestroyImages()
 {
 
 }
+#endif
