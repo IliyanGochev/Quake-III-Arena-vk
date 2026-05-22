@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define REF_API_OPENGL      1
 #define REF_API_DIRECT3D_11 2
 #define REF_API_PROXY       3 // does both opengl and directx side-by-side
+#define REF_API_VULKAN      4
 
 //
 // these are the functions exported by the refresh module
