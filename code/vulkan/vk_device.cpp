@@ -853,7 +853,6 @@ void VKDRV_PopulateDescriptorSets()
     if ( defaultTex && defaultTex->imageView )
     {
         VkDescriptorImageInfo texInfo = {};
-        texInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_IMAGE_INFO;
         texInfo.sampler = defaultTex->sampler;
         texInfo.imageView = defaultTex->imageView;
         texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -886,15 +885,11 @@ void VKDRV_UpdateTextureDescriptors( const vkImage_t* tex0, const vkImage_t* tex
     const vkImage_t* fallback = GetImageRenderInfo( tr.whiteImage );
 
     VkDescriptorImageInfo info0 = {};
-    info0.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_IMAGE_INFO;
-    
     info0.imageView = fallback->imageView;
     info0.sampler = fallback->sampler;
     info0.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkDescriptorImageInfo info1 = {};
-    info1.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_IMAGE_INFO;
-
     info1.imageView = fallback->imageView;
     info1.sampler = fallback->sampler;
     info1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
