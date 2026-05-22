@@ -1292,6 +1292,7 @@
     </ClCompile>
     <ClCompile Include="..\vulkan\vk_draw.cpp" />
     <ClCompile Include="..\vulkan\vk_driver.cpp" />
+    <ClCompile Include="..\vulkan\vk_swapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\d3d11\d3d_common.h" />

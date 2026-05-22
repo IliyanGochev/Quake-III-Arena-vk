@@ -1,0 +1,40 @@
+CompileFlags:
+  Add:
+    # Windows defines
+    - -D_CRT_SECURE_NO_WARNINGS
+    - -DWIN32
+    - -D_WINDOWS
+    - -D_DEBUG
+
+    # Include paths (relative to code directory)
+    - -I.
+    - -Igame
+    - -Icgame
+    - -Iclient
+    - -Iserver
+    - -Iqcommon
+    - -Irenderer
+    - -Ibotlib
+    - -Iwin32
+    - -Id3d11
+    - -Ivulkan
+    - -Isplines
+
+    # Vulkan SDK (use environment variable or common paths)
+    - -I${env.VULKAN_SDK}/Include
+
+    # Windows SDK headers (clangd should find these automatically, but just in case)
+    - -fms-extensions
+    - -fms-compatibility
+    - -fdelayed-template-parsing
+
+    # Treat as C++ for mixed C/C++ codebase
+    # Remove this if you want strict C mode for .c files
+    # - -xc++
+
+  Compiler: clang-cl
+
+Diagnostics:
+  UnusedIncludes: None
+  Suppress:
+    - pp_file_not_found  # Suppress missing header warnings for SDK headers

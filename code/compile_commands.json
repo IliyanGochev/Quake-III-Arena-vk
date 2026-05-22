@@ -1,0 +1,447 @@
+[
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_main.c"],
+    "file": "win32/win_main.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_input.c"],
+    "file": "win32/win_input.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_net.c"],
+    "file": "win32/win_net.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_shared.c"],
+    "file": "win32/win_shared.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_snd.c"],
+    "file": "win32/win_snd.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_syscon.c"],
+    "file": "win32/win_syscon.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "win32/win_wndproc.c"],
+    "file": "win32/win_wndproc.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "win32/win_d3d.cpp"],
+    "file": "win32/win_d3d.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "win32/win_vk.cpp"],
+    "file": "win32/win_vk.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_animation.c"],
+    "file": "renderer/tr_animation.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_backend.c"],
+    "file": "renderer/tr_backend.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_bsp.c"],
+    "file": "renderer/tr_bsp.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_cmds.c"],
+    "file": "renderer/tr_cmds.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_curve.c"],
+    "file": "renderer/tr_curve.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_flares.c"],
+    "file": "renderer/tr_flares.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_font.c"],
+    "file": "renderer/tr_font.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_image.c"],
+    "file": "renderer/tr_image.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_init.c"],
+    "file": "renderer/tr_init.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_layer.c"],
+    "file": "renderer/tr_layer.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_light.c"],
+    "file": "renderer/tr_light.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_main.c"],
+    "file": "renderer/tr_main.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_marks.c"],
+    "file": "renderer/tr_marks.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_mesh.c"],
+    "file": "renderer/tr_mesh.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_model.c"],
+    "file": "renderer/tr_model.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_noise.c"],
+    "file": "renderer/tr_noise.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_scene.c"],
+    "file": "renderer/tr_scene.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_shade.c"],
+    "file": "renderer/tr_shade.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_shade_calc.c"],
+    "file": "renderer/tr_shade_calc.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_shader.c"],
+    "file": "renderer/tr_shader.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_shadows.c"],
+    "file": "renderer/tr_shadows.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_sky.c"],
+    "file": "renderer/tr_sky.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_surface.c"],
+    "file": "renderer/tr_surface.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/tr_world.c"],
+    "file": "renderer/tr_world.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "renderer/gl_driver.c"],
+    "file": "renderer/gl_driver.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_driver.cpp"],
+    "file": "d3d11/d3d_driver.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_common.cpp"],
+    "file": "d3d11/d3d_common.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_device.cpp"],
+    "file": "d3d11/d3d_device.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_draw.cpp"],
+    "file": "d3d11/d3d_draw.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_drawdata.cpp"],
+    "file": "d3d11/d3d_drawdata.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_image.cpp"],
+    "file": "d3d11/d3d_image.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_shaders.cpp"],
+    "file": "d3d11/d3d_shaders.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "d3d11/d3d_state.cpp"],
+    "file": "d3d11/d3d_state.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_driver.cpp"],
+    "file": "vulkan/vk_driver.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_device.cpp"],
+    "file": "vulkan/vk_device.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_draw.cpp"],
+    "file": "vulkan/vk_draw.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_image.cpp"],
+    "file": "vulkan/vk_image.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_shaders.cpp"],
+    "file": "vulkan/vk_shaders.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "/std:c++17", "vulkan/vk_state.cpp"],
+    "file": "vulkan/vk_state.cpp"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_cgame.c"],
+    "file": "client/cl_cgame.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_cin.c"],
+    "file": "client/cl_cin.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_console.c"],
+    "file": "client/cl_console.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_input.c"],
+    "file": "client/cl_input.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_keys.c"],
+    "file": "client/cl_keys.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_main.c"],
+    "file": "client/cl_main.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_net_chan.c"],
+    "file": "client/cl_net_chan.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_parse.c"],
+    "file": "client/cl_parse.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_scrn.c"],
+    "file": "client/cl_scrn.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/cl_ui.c"],
+    "file": "client/cl_ui.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/snd_adpcm.c"],
+    "file": "client/snd_adpcm.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/snd_dma.c"],
+    "file": "client/snd_dma.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/snd_mem.c"],
+    "file": "client/snd_mem.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/snd_mix.c"],
+    "file": "client/snd_mix.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "client/snd_wavelet.c"],
+    "file": "client/snd_wavelet.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cm_load.c"],
+    "file": "qcommon/cm_load.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cm_patch.c"],
+    "file": "qcommon/cm_patch.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cm_polylib.c"],
+    "file": "qcommon/cm_polylib.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cm_test.c"],
+    "file": "qcommon/cm_test.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cm_trace.c"],
+    "file": "qcommon/cm_trace.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cmd.c"],
+    "file": "qcommon/cmd.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/common.c"],
+    "file": "qcommon/common.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/cvar.c"],
+    "file": "qcommon/cvar.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/files.c"],
+    "file": "qcommon/files.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/huffman.c"],
+    "file": "qcommon/huffman.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/md4.c"],
+    "file": "qcommon/md4.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/msg.c"],
+    "file": "qcommon/msg.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/net_chan.c"],
+    "file": "qcommon/net_chan.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/unzip.c"],
+    "file": "qcommon/unzip.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/vm.c"],
+    "file": "qcommon/vm.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "qcommon/vm_interpreted.c"],
+    "file": "qcommon/vm_interpreted.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_bot.c"],
+    "file": "server/sv_bot.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_ccmds.c"],
+    "file": "server/sv_ccmds.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_client.c"],
+    "file": "server/sv_client.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_game.c"],
+    "file": "server/sv_game.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_init.c"],
+    "file": "server/sv_init.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_main.c"],
+    "file": "server/sv_main.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_net_chan.c"],
+    "file": "server/sv_net_chan.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_rankings.c"],
+    "file": "server/sv_rankings.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_snapshot.c"],
+    "file": "server/sv_snapshot.c"
+  },
+  {
+    "directory": "E:/repos/Quake-III-Arena-vk/code",
+    "arguments": ["clang-cl", "/c", "/D_CRT_SECURE_NO_WARNINGS", "/DWIN32", "/D_WINDOWS", "/D_DEBUG", "/I.", "/Igame", "/Icgame", "/Iclient", "/Iserver", "/Iqcommon", "/Irenderer", "/Ibotlib", "/Iwin32", "/Id3d11", "/Ivulkan", "/Isplines", "server/sv_world.c"],
+    "file": "server/sv_world.c"
+  }
+]
